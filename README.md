@@ -48,3 +48,43 @@ Você pode escolher **para onde o som será reproduzido**, seja um fone, uma pla
 2. Dê permissão de execução:
    ```bash
    chmod +x soundboard-pro-1.0.0.AppImage
+3. (Dependência) AppImages podem exigir o FUSE v2:
+   ```bash
+   sudo apt install libfuse2t64
+4. Execute o arquivo para iniciar o aplicativo.
+
+---
+### 🧑‍🔬 2. Para Desenvolvedores (Rodando do Código-Fonte)
+**Pré-requisito**: Node.js instalado.
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/marcosviniciuscl/soundboard.git
+cd soundboard
+
+# 2. Instale as dependências
+npm install
+
+# 3. Rode o aplicativo em modo de desenvolvimento
+npm start
+```
+
+#### 📦 Como "Buildar" (Gerar AppImage / .deb / .exe)
+Para empacotar o aplicativo para distribuição:
+```bash
+# Isso irá gerar os pacotes na pasta /dist
+npm run dist
+```
+
+### 📄 Licença
+
+Distribuído sob a licença MIT.
+
+### 💡 Contribuindo
+
+Contribuições são bem-vindas!
+Sinta-se à vontade para abrir issues, enviar pull requests ou sugerir novas funcionalidades.
+
+### 🖤 Créditos
+
+Desenvolvido com 💻, ☕ e 🎶 por Marcos Vinicius Cruz Lima.
