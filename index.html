@@ -637,6 +637,22 @@
           ipcRenderer.send('restart-app');
         }
         loadConfig();
+
+        navigator.mediaDevices.ondevicechange = (event) => {
+            console.log('Dispositivos de mídia mudaram! Recarregando lista de áudio...');
+            
+            const select = document.getElementById('audioOutputSelect');
+            const valorAntigo = select.value;
+
+            loadAudioDevices().then(() => {
+                if (Array.from(select.options).some(opt => opt.value === valorAntigo)) {
+                    select.value = valorAntigo;
+                } else {
+                    select.value = 'default';
+                    saveAudioDevice();
+                }
+            });
+        };
     </script>
 </body>
 </html>
