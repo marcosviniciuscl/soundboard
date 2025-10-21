@@ -5,7 +5,7 @@
     "main": "main.js",
     "scripts": {
         "start": "electron .",
-        "build": "electron-builder"
+        "build": "electron-builder --publish always"
     },
     "keywords": [
         "soundboard",
@@ -20,7 +20,8 @@
         "electron-builder": "^24.9.1"
     },
     "dependencies": {
-        "electron-localshortcut": "^3.2.1"
+        "electron-localshortcut": "^3.2.1",
+        "electron-updater": "^6.1.7"
     },
     "build": {
         "appId": "com.mvclima.hahaha",
@@ -31,6 +32,9 @@
             "icon.png",
             "icon.ico"
         ],
+        "publish": {
+            "provider": "github"
+        },
         "win": {
             "target": "nsis",
             "icon": "icon.ico"

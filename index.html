@@ -616,6 +616,26 @@
             capturedKeys.clear();
         }
 
+        const notification = document.getElementById('notification');
+        const message = document.getElementById('notificationMessage');
+        const restartButton = document.getElementById('restartButton');
+
+        ipcRenderer.on('update-available', () => {
+          ipcRenderer.removeAllListeners('update-available');
+          message.innerText = 'Uma nova atualização está sendo baixada...';
+          notification.classList.add('show');
+        });
+
+        ipcRenderer.on('update-downloaded', () => {
+          ipcRenderer.removeAllListeners('update-downloaded');
+          message.innerText = 'Atualização pronta! Reiniciar agora para instalar?';
+          restartButton.style.display = 'flex'; // Mostra o botão
+          notification.classList.add('show');
+        });
+
+        function restartApp() {
+          ipcRenderer.send('restart-app');
+        }
         loadConfig();
     </script>
 </body>
