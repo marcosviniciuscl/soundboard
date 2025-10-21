@@ -1,4 +1,4 @@
-# 🎵 Soundboard Pro
+# 🎵 Soundboard
 
 Um **soundboard de desktop de código aberto** com **atalhos globais** e **seleção de saída de áudio** — perfeito para streamers, gamers, podcasters ou qualquer pessoa que queira se divertir em chamadas de voz.  
 Construído com **Electron** 🖥️
@@ -7,7 +7,7 @@ Construído com **Electron** 🖥️
 
 ## 🚀 Sobre o Projeto
 
-O **Soundboard Pro** permite atribuir **atalhos de teclado globais** a qualquer arquivo de áudio do seu computador.  
+O **Soundboard** permite atribuir **atalhos de teclado globais** a qualquer arquivo de áudio do seu computador.  
 Você pode escolher **para onde o som será reproduzido**, seja um fone, uma placa de som virtual (ex: Voicemeeter) ou a saída principal do sistema.
 
 ### 🔊 Diferenciais:
