@@ -1,0 +1,16 @@
+{
+  "settings": {
+    "audioDevice": "362f4adc18ae579480a6f696cf19574622cbd06d6ab2a3a90cd131ea0f161120"
+  },
+  "sounds": {
+    "Chaves": {
+      "path": "/home/marcos/Downloads/cggasa.mp3",
+      "hotkey": "CommandOrControl+G",
+      "volume": 1,
+      "speed": 1,
+      "loop": false,
+      "startTime": 0,
+      "endTime": 0
+    }
+  }
+}

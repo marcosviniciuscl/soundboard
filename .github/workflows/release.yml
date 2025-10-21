@@ -1,0 +1,51 @@
+name: Electron Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out git repository
+        uses: actions/checkout@v3
+
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' 
+
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      - name: Build application
+        run: npm run dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. Cria a Release no GitHub e anexa os arquivos
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          # Pega os arquivos gerados na pasta 'dist'
+          # O padrão de nome dos arquivos é definido pelo electron-builder
+          files: |
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    

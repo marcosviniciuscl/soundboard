@@ -1,0 +1,48 @@
+{
+    "name": "hahaha-app",
+    "version": "0.0.1",
+    "description": "Hahaha com atalhos personalizados",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-builder"
+    },
+    "keywords": [
+        "soundboard",
+        "hahaha",
+        "hotkeys",
+        "audio"
+    ],
+    "author": "Marcos Vinicius Cruz Lima",
+    "license": "MIT",
+    "devDependencies": {
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1"
+    },
+    "dependencies": {
+        "electron-localshortcut": "^3.2.1"
+    },
+    "build": {
+        "appId": "com.mvclima.hahaha",
+        "productName": "Hahaha",
+        "files": [
+            "main.js",
+            "index.html",
+            "icon.png",
+            "icon.ico"
+        ],
+        "win": {
+            "target": "nsis",
+            "icon": "icon.ico"
+        },
+        "linux": {
+            "target": "AppImage",
+            "category": "AudioVideo",
+            "icon": "icon.png"
+        },
+        "mac": {
+            "target": "dmg",
+            "icon": "icon.png"
+        }
+    }
+}

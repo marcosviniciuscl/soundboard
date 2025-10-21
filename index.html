@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; media-src 'self' file:;">
+    <title>Soundboard - Atalhos de Áudio</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+            color: #ffffff;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        /* ... (Todo o seu CSS existente) ... */
+        
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 2.5em; margin-bottom: 10px; background: linear-gradient(45deg, #4CAF50, #2196F3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: #aaaaaa; font-size: 1.1em; }
+        .controls { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        button { padding: 12px 24px; border: none; border-radius: 8px; font-size: 1em; font-weight: bold; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn-add { background: linear-gradient(135deg, #4CAF50, #45a049); color: white; }
+        .btn-edit { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
+        .btn-remove { background: linear-gradient(135deg, #f44336, #da190b); color: white; }
+        .btn-test { background: linear-gradient(135deg, #2196F3, #0b7dda); color: white; }
+        .sounds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .sound-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; transition: all 0.3s ease; cursor: pointer; }
+        .sound-card:hover { background: rgba(255, 255, 255, 0.08); border-color: #4CAF50; transform: translateY(-3px); box-shadow: 0 8px 20px rgba(76, 175, 80, 0.2); }
+        .sound-card.selected { border-color: #2196F3; background: rgba(33, 150, 243, 0.1); }
+        .sound-name { font-size: 1.3em; font-weight: bold; margin-bottom: 10px; color: #4CAF50; }
+        .sound-hotkey { display: inline-block; background: rgba(255, 255, 255, 0.1); padding: 6px 12px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.9em; margin-bottom: 8px; color: #2196F3; }
+        .sound-file { font-size: 0.85em; color: #aaaaaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 12px; }
+        .sound-details { font-size: 0.9em; color: #ccc; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        .empty-state { text-align: center; padding: 60px 20px; color: #888; }
+        .empty-state-icon { font-size: 4em; margin-bottom: 20px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(5px); overflow-y: auto; }
+        .modal-content { background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%); margin: 5% auto; padding: 30px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; width: 90%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .modal-header { font-size: 1.8em; margin-bottom: 25px; color: #4CAF50; }
+        .form-group { margin-bottom: 20px; }
+        .form-group-inline { display: flex; gap: 15px; }
+        .form-group-inline > div { flex: 1; }
+        label { display: block; margin-bottom: 8px; color: #aaaaaa; font-weight: 500; }
+        .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .slider-label span { color: #fff; background: rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.9em; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: white; font-size: 1em; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: #4CAF50; background: rgba(255, 255, 255, 0.08); }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 5px; background: rgba(255, 255, 255, 0.1); outline: none; transition: background 0.3s; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #4CAF50; cursor: pointer; }
+        input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #4CAF50; cursor: pointer; }
+        .form-group-check { display: flex; align-items: center; gap: 12px; }
+        .form-group-check label { margin-bottom: 0; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        .file-selector { display: flex; gap: 10px; align-items: center; }
+        .file-name { flex: 1; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaaaaa; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 25px; }
+        .modal-actions button { flex: 1; }
+        .info { text-align: center; padding: 15px; background: rgba(33, 150, 243, 0.1); border: 1px solid rgba(33, 150, 243, 0.3); border-radius: 8px; color: #2196F3; margin-top: 20px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 20px; }
+        .close:hover { color: #fff; }
+
+        /* MUDANÇA: CSS para o seletor de áudio */
+        .audio-output-selector {
+            margin-bottom: 20px;
+            margin-top: 20px; /* Adicionado espaço em cima */
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .audio-output-selector label {
+            font-weight: bold;
+            color: #aaaaaa;
+            margin-bottom: 0; 
+        }
+        .audio-output-selector select {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        /* MUDANÇA: Cor de fundo das opções do dropdown */
+        .audio-output-selector select option {
+            background: #2d2d2d;
+            color: #ffffff;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Hahaha</h1>
+            <p class="subtitle">Atalhos de áudio personalizados</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn-add" onclick="openAddModal()">➕ Adicionar Áudio</button>
+            <button class="btn-edit" onclick="openEditModal()">✏️ Editar Selecionado</button>
+            <button class="btn-remove" onclick="removeSound()">🗑️ Remover Selecionado</button>
+            <button class="btn-test" onclick="testSelected()">▶️ Testar Som</button>
+        </div>
+
+        <div id="soundsContainer" class="sounds-grid">
+            </div>
+
+        <div class="audio-output-selector">
+            <label for="audioOutputSelect">🔊 Saída de Áudio:</label>
+            <select id="audioOutputSelect" onchange="saveAudioDevice()">
+                <option value="default">Padrão do Sistema</option>
+            </select>
+        </div>
+
+        <div class="info">
+            💡 Duplo clique para testar • Atalhos funcionam mesmo com a janela minimizada
+        </div>
+    </div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddModal()">&times;</span>
+            <h2 class="modal-header" id="modalTitle">Adicionar Novo Som</h2>
+            <input type="hidden" id="originalSoundName" value="">
+            <div class="form-group">
+                <label>Nome do Som:</label>
+                <input type="text" id="soundName" placeholder="Ex: Risada do Chaves">
+            </div>
+            <div class="form-group">
+                <label>Atalho:</label>
+                <input type="text" id="soundHotkey" placeholder="Clique aqui e pressione as teclas..." readonly style="cursor: pointer;">
+                <small style="color: #888; display: block; margin-top: 5px;">
+                    Use Ctrl, Shift, Alt.
+                </small>
+                <button class="btn-test" onclick="clearHotkey()" style="margin-top: 8px; width: 100%;">
+                    🔄 Limpar Atalho
+                </button>
+            </div>
+            <div class="form-group">
+                <label>Arquivo de Áudio:</label>
+                <div class="file-selector">
+                    <div class="file-name" id="fileName">Nenhum arquivo selecionado</div>
+                    <button class="btn-test" onclick="selectFile()" style="flex: 0 0 auto;">
+                        📁 Escolher
+                    </button>
+                </div>
+            </div>
+            <div class="form-group form-group-inline">
+                <div>
+                    <label>Início (segundos):</label>
+                    <input type="number" id="soundStartTime" min="0" step="0.1" value="0">
+                </div>
+                <div>
+                    <label>Fim (segundos):</label>
+                    <input type="number" id="soundEndTime" min="0" step="0.1" value="0">
+                </div>
+            </div>
+             <small style="color: #888; display: block; margin-top: -15px; margin-bottom: 15px;">
+                Deixe "Fim" como 0 para tocar até o final.
+            </small>
+            <div class="form-group">
+                <div class="slider-label">
+                    <label>Volume:</label>
+                    <span id="volumeValue">100%</span>
+                </div>
+                <input type="range" id="soundVolume" min="0" max="1" step="0.01" value="1" oninput="updateSliderLabels()">
+            </div>
+            <div class="form-group">
+                 <div class="slider-label">
+                    <label>Velocidade:</label>
+                    <span id="speedValue">1.0x</span>
+                </div>
+                <input type="range" id="soundSpeed" min="0.5" max="2" step="0.1" value="1" oninput="updateSliderLabels()">
+            </div>
+            <div class="form-group form-group-check">
+                <input type="checkbox" id="soundLoop">
+                <label for="soundLoop">Repetir (Loop)</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-add" onclick="saveSound()">💾 Salvar</button>
+                <button class="btn-remove" onclick="closeAddModal()">❌ Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const path = require('path');
+
+        let config = { settings: { audioDevice: 'default' }, sounds: {} };
+        
+        let selectedSound = null;
+        let selectedFilePath = null;
+        let currentAudio = null;
+        let isCapturingHotkey = false;
+        let capturedKeys = new Set();
+        let stopAudioTimer = null;
+
+        async function loadConfig() {
+            config = await ipcRenderer.invoke('load-config');
+
+            if (!config.settings) config.settings = { audioDevice: 'default' };
+            if (!config.sounds) config.sounds = {};
+
+            await loadAudioDevices();
+
+            const savedDevice = config.settings.audioDevice || 'default';
+            document.getElementById('audioOutputSelect').value = savedDevice;
+
+            renderSounds();
+        }
+
+        async function saveConfig() {
+            await ipcRenderer.invoke('save-config', config);
+        }
+
+        async function loadAudioDevices() {
+            const select = document.getElementById('audioOutputSelect');
+            select.innerHTML = '<option value="default">Padrão do Sistema</option>'; 
+
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (err) {
+                console.warn('Permissão de áudio negada. Os nomes dos dispositivos podem não aparecer.');
+                alert('Por favor, permita o acesso ao microfone para listar os dispositivos de áudio.');
+            }
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioDevices = devices.filter(device => device.kind === 'audiooutput');
+
+                audioDevices.forEach(device => {
+                    if (device.deviceId === 'default' || device.deviceId === 'communications') return;
+                    
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Dispositivo ${select.options.length}`;
+                    select.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Erro ao listar dispositivos de áudio:', err);
+            }
+        }
+
+        async function saveAudioDevice() {
+            const selectedDeviceId = document.getElementById('audioOutputSelect').value;
+            config.settings.audioDevice = selectedDeviceId;
+            await saveConfig();
+            alert('Saída de áudio salva!');
+        }
+
+        function renderSounds() {
+            const container = document.getElementById('soundsContainer');
+            
+            if (Object.keys(config.sounds).length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎼</div>
+                        <h3>Nenhum som adicionado ainda</h3>
+                        <p>Clique em "Adicionar Áudio" para começar</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            Object.entries(config.sounds).forEach(([name, data]) => {
+                const card = document.createElement('div');
+                card.className = 'sound-card';
+                if (selectedSound === name) {
+                    card.classList.add('selected');
+                }
+                
+                const fileName = path.basename(data.path);
+                const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+                const speed = data.speed !== undefined ? data.speed : 1;
+                const loop = data.loop || false;
+                const startTime = data.startTime || 0;
+                const endTime = data.endTime || 0;
+                const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+
+                card.innerHTML = `
+                    <div class="sound-name">${name}</div>
+                    <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
+                    <div class="sound-file">📄 ${fileName}</div>
+                    <div class="sound-details">
+                        <span>🔊 ${volume.toFixed(0)}%</span>
+                        <span>⏩ ${speed.toFixed(1)}x</span>
+                        <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
+                    </div>
+                    <div class="sound-details" style="border-top: none; padding-top: 5px;">
+                         <span>⏱️ ${timeText}</span>
+                    </div>
+                `;
+                
+                card.onclick = () => selectSoundCard(name);
+                card.ondblclick = () => playSound(name);
+                
+                container.appendChild(card);
+            });
+        }
+
+        function selectSoundCard(name) {
+            selectedSound = name;
+            renderSounds();
+        }
+
+        function updateSliderLabels() {
+            try {
+                const vol = document.getElementById('soundVolume').value;
+                document.getElementById('volumeValue').textContent = `${Math.round(vol * 100)}%`;
+                const speed = document.getElementById('soundSpeed').value;
+                document.getElementById('speedValue').textContent = `${parseFloat(speed).toFixed(1)}x`;
+            } catch (e) {}
+        }
+
+        function openAddModal() {
+            document.getElementById('modalTitle').textContent = 'Adicionar Novo Som';
+            document.getElementById('originalSoundName').value = ''; 
+            document.getElementById('soundName').value = '';
+            document.getElementById('soundHotkey').value = '';
+            document.getElementById('fileName').textContent = 'Nenhum arquivo selecionado';
+            selectedFilePath = null;
+            document.getElementById('soundVolume').value = 1;
+            document.getElementById('soundSpeed').value = 1;
+            document.getElementById('soundLoop').checked = false;
+            document.getElementById('soundStartTime').value = 0;
+            document.getElementById('soundEndTime').value = 0;
+            updateSliderLabels(); 
+            setupHotkeyCapture();
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+        function openEditModal() {
+            if (!selectedSound || !config.sounds[selectedSound]) {
+                alert('Selecione um som para editar!');
+                return;
+            }
+
+            const data = config.sounds[selectedSound]; 
+
+            document.getElementById('modalTitle').textContent = 'Editar Som';
+            document.getElementById('originalSoundName').value = selectedSound; 
+            document.getElementById('soundName').value = selectedSound;
+            document.getElementById('soundHotkey').value = data.hotkey;
+            document.getElementById('fileName').textContent = path.basename(data.path);
+            selectedFilePath = data.path;
+            document.getElementById('soundVolume').value = data.volume !== undefined ? data.volume : 1;
+            document.getElementById('soundSpeed').value = data.speed !== undefined ? data.speed : 1;
+            document.getElementById('soundLoop').checked = data.loop || false;
+            document.getElementById('soundStartTime').value = data.startTime || 0;
+            document.getElementById('soundEndTime').value = data.endTime || 0;
+            updateSliderLabels(); 
+            setupHotkeyCapture();
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+
+        function closeAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+            isCapturingHotkey = false;
+            capturedKeys.clear();
+            selectedFilePath = null;
+            document.getElementById('originalSoundName').value = '';
+        }
+
+        async function selectFile() {
+            const filePath = await ipcRenderer.invoke('select-audio-file');
+            if (filePath) {
+                selectedFilePath = filePath;
+                document.getElementById('fileName').textContent = path.basename(filePath);
+            }
+        }
+
+        async function saveSound() {
+            const name = document.getElementById('soundName').value.trim();
+            const hotkey = document.getElementById('soundHotkey').value.trim();
+            const originalName = document.getElementById('originalSoundName').value;
+            const volume = parseFloat(document.getElementById('soundVolume').value);
+            const speed = parseFloat(document.getElementById('soundSpeed').value);
+            const loop = document.getElementById('soundLoop').checked;
+            const startTime = parseFloat(document.getElementById('soundStartTime').value) || 0;
+            const endTime = parseFloat(document.getElementById('soundEndTime').value) || 0;
+
+            if (!name) { alert('Por favor, insira um nome para o som!'); return; }
+            if (!hotkey) { alert('Por favor, insira um atalho!'); return; }
+            if (!selectedFilePath) { alert('Por favor, selecione um arquivo de áudio!'); return; }
+            
+            if (name !== originalName && config.sounds[name]) { 
+                alert(`O nome "${name}" já está em uso. Escolha outro nome.`);
+                return;
+            }
+            
+            if (originalName && originalName !== name) {
+                delete config.sounds[originalName]; 
+            }
+            
+            config.sounds[name] = { 
+                path: selectedFilePath,
+                hotkey: hotkey,
+                volume: volume,
+                speed: speed,
+                loop: loop,
+                startTime: startTime,
+                endTime: endTime
+            };
+            
+            await saveConfig();
+            selectedSound = name; 
+            renderSounds();
+            closeAddModal();
+            alert(`Som "${name}" salvo com sucesso!`);
+        }
+
+        async function removeSound() {
+            if (!selectedSound) {
+                alert('Selecione um som para remover!');
+                return;
+            }
+            if (confirm(`Deseja remover o som "${selectedSound}"?`)) {
+                delete config.sounds[selectedSound]; 
+                await saveConfig();
+                selectedSound = null;
+                renderSounds();
+            }
+        }
+
+        function testSelected() {
+            if (!selectedSound) {
+                alert('Selecione um som para testar!');
+                return;
+            }
+            playSound(selectedSound);
+        }
+
+        async function playSound(name) {
+            if (!config.sounds[name]) return; 
+            
+            const data = config.sounds[name]; 
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio.src = ''; 
+                currentAudio = null;
+            }
+            if (stopAudioTimer) {
+                clearTimeout(stopAudioTimer);
+                stopAudioTimer = null;
+            }
+            
+            try {
+                currentAudio = new Audio(data.path);
+
+                const startTime = data.startTime || 0;
+                const endTime = data.endTime || 0;
+
+                currentAudio.volume = data.volume !== undefined ? data.volume : 1;
+                currentAudio.playbackRate = data.speed !== undefined ? data.speed : 1;
+                currentAudio.loop = data.loop || false;
+                currentAudio.currentTime = startTime;
+
+                const deviceId = config.settings.audioDevice || 'default';
+                if (deviceId !== 'default') {
+                    try {
+                        await currentAudio.setSinkId(deviceId);
+                    } catch (err) {
+                        console.error('Falha ao definir a saída de áudio:', err);
+                        alert('Erro! Não foi possível alterar a saída de áudio. Voltando para o Padrão.');
+                        config.settings.audioDevice = 'default';
+                        document.getElementById('audioOutputSelect').value = 'default';
+                        await saveConfig();
+                    }
+                }
+
+                currentAudio.play().catch(err => {
+                    console.error('Erro ao reproduzir áudio:', err);
+                    alert('Erro ao reproduzir o áudio. Verifique se o arquivo existe.');
+                    currentAudio = null;
+                });
+
+                if (endTime > startTime && !currentAudio.loop) {
+                    const durationInMs = (endTime - startTime) * 1000 / currentAudio.playbackRate;
+                    stopAudioTimer = setTimeout(() => {
+                        if (currentAudio) {
+                            currentAudio.pause();
+                            currentAudio.currentTime = startTime;
+                        }
+                    }, durationInMs);
+                }
+
+                if (endTime > startTime && currentAudio.loop) {
+                    currentAudio.addEventListener('timeupdate', function() {
+                        if (this.currentTime >= endTime) {
+                            this.currentTime = startTime;
+                        }
+                    });
+                }
+
+            } catch (error) {
+                console.error('Erro ao criar Audio:', error);
+                alert('Erro ao carregar o áudio.');
+                currentAudio = null;
+            }
+        }
+
+        ipcRenderer.on('play-sound', (event, name) => {
+            playSound(name); 
+        });
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('addModal');
+            if (event.target === modal) {
+                closeAddModal();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && document.getElementById('addModal').style.display === 'block') {
+                if (!isCapturingHotkey) {
+                    saveSound();
+                }
+            }
+            if (e.key === 'Escape') {
+                closeAddModal();
+            }
+        });
+
+        function setupHotkeyCapture() {
+            const hotkeyInput = document.getElementById('soundHotkey');
+            
+            hotkeyInput.addEventListener('focus', () => {
+                isCapturingHotkey = true;
+                capturedKeys.clear();
+                hotkeyInput.value = '';
+                hotkeyInput.placeholder = 'Pressione as teclas...';
+            });
+            
+            hotkeyInput.addEventListener('blur', () => {
+                isCapturingHotkey = false; 
+                if (hotkeyInput.value === '') {
+                    hotkeyInput.placeholder = 'Clique aqui e pressione as teclas...';
+                }
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            const hotkeyInput = document.getElementById('soundHotkey');
+            
+            if (isCapturingHotkey && document.getElementById('addModal').style.display === 'block') {
+                e.preventDefault();
+                
+                if (['Control', 'Shift', 'Alt'].includes(e.key)) {
+                    return;
+                }
+                
+                const keys = [];
+                
+                if (e.ctrlKey) {
+                    keys.push('CommandOrControl');
+                }
+                if (e.shiftKey) {
+                    keys.push('Shift');
+                }
+                if (e.altKey) {
+                    keys.push('Alt');
+                }
+                
+                let key = e.key;
+                
+                const specialKeys = {
+                    ' ': 'Space', 'ArrowUp': 'Up', 'ArrowDown': 'Down',
+                    'ArrowLeft': 'Left', 'ArrowRight': 'Right', 'Escape': 'Esc'
+                };
+                
+                if (specialKeys[key]) {
+                    key = specialKeys[key];
+                } else if (key.length === 1) {
+                    key = key.toUpperCase();
+                }
+                
+                if (!['CONTROL', 'SHIFT', 'ALT'].includes(key.toUpperCase())) {
+                     keys.push(key);
+                }
+               
+                const hotkey = keys.join('+');
+                hotkeyInput.value = hotkey;
+                
+                setTimeout(() => {
+                    isCapturingHotkey = false;
+                    hotkeyInput.blur();
+                }, 100);
+            }
+        });
+
+        function clearHotkey() {
+            document.getElementById('soundHotkey').value = '';
+            capturedKeys.clear();
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>
+
+
+<!-- <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; media-src 'self' file:;">
+    <title>Soundboard - Atalhos de Áudio</title>
+    <style>
+        /* ... (NENHUMA MUDANÇA NO CSS, PODE MANTER O SEU) ... */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+            color: #ffffff;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #4CAF50, #2196F3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #aaaaaa;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .btn-edit {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: white;
+        }
+
+        .btn-remove {
+            background: linear-gradient(135deg, #f44336, #da190b);
+            color: white;
+        }
+
+        .btn-test {
+            background: linear-gradient(135deg, #2196F3, #0b7dda);
+            color: white;
+        }
+
+        .sounds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .sound-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .sound-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #4CAF50;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.2);
+        }
+
+        .sound-card.selected {
+            border-color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+        }
+
+        .sound-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+
+        .sound-hotkey {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            color: #2196F3;
+        }
+
+        .sound-file {
+            font-size: 0.85em;
+            color: #aaaaaa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 12px;
+        }
+
+        .sound-details {
+            font-size: 0.9em;
+            color: #ccc;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #2d2d2d 0%, #1e1e1e 100%);
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .modal-header {
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            color: #4CAF50;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        /* NOVO: Para agrupar Início/Fim */
+        .form-group-inline {
+            display: flex;
+            gap: 15px;
+        }
+        .form-group-inline > div {
+            flex: 1;
+        }
+
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaaaaa;
+            font-weight: 500;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .slider-label span {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        input[type="text"],
+        input[type="number"] { /* MUDANÇA: Estilo aplicado a number */
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1em;
+        }
+        
+        input[type="number"] {
+            -moz-appearance: textfield; /* Remove setas no Firefox */
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none; /* Remove setas no Chrome/Safari */
+            margin: 0;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus { /* MUDANÇA: Estilo aplicado a number */
+            outline: none;
+            border-color: #4CAF50;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            transition: background 0.3s;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+
+        .form-group-check {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .form-group-check label {
+            margin-bottom: 0;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+
+        .file-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .file-name {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #aaaaaa;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+        }
+
+        .info {
+            text-align: center;
+            padding: 15px;
+            background: rgba(33, 150, 243, 0.1);
+            border: 1px solid rgba(33, 150, 243, 0.3);
+            border-radius: 8px;
+            color: #2196F3;
+            margin-top: 20px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Soundboard</h1>
+            <p class="subtitle">Atalhos de áudio personalizados</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn-add" onclick="openAddModal()">
+                ➕ Adicionar Áudio
+            </button>
+            <button class="btn-edit" onclick="openEditModal()">
+                ✏️ Editar Selecionado
+            </button>
+            <button class="btn-remove" onclick="removeSound()">
+                🗑️ Remover Selecionado
+            </button>
+            <button class="btn-test" onclick="testSelected()">
+                ▶️ Testar Som
+            </button>
+        </div>
+
+        <div id="soundsContainer" class="sounds-grid">
+            </div>
+
+        <div class="info">
+            💡 Duplo clique para testar • Atalhos funcionam mesmo com a janela minimizada
+        </div>
+    </div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddModal()">&times;</span>
+            <h2 class="modal-header" id="modalTitle">Adicionar Novo Som</h2>
+            
+            <input type="hidden" id="originalSoundName" value="">
+
+            <div class="form-group">
+                <label>Nome do Som:</label>
+                <input type="text" id="soundName" placeholder="Ex: Risada do Chaves">
+            </div>
+
+            <div class="form-group">
+                <label>Atalho:</label>
+                <input type="text" id="soundHotkey" placeholder="Clique aqui e pressione as teclas..." readonly style="cursor: pointer;">
+                <small style="color: #888; display: block; margin-top: 5px;">
+                    Inclui Ctrl, Shift, Alt, e a tecla Windows (Super)
+                </small>
+                <button class="btn-test" onclick="clearHotkey()" style="margin-top: 8px; width: 100%;">
+                    🔄 Limpar Atalho
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label>Arquivo de Áudio:</label>
+                <div class="file-selector">
+                    <div class="file-name" id="fileName">Nenhum arquivo selecionado</div>
+                    <button class="btn-test" onclick="selectFile()" style="flex: 0 0 auto;">
+                        📁 Escolher
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group form-group-inline">
+                <div>
+                    <label>Início (segundos):</label>
+                    <input type="number" id="soundStartTime" min="0" step="0.1" value="0">
+                </div>
+                <div>
+                    <label>Fim (segundos):</label>
+                    <input type="number" id="soundEndTime" min="0" step="0.1" value="0">
+                </div>
+            </div>
+             <small style="color: #888; display: block; margin-top: -15px; margin-bottom: 15px;">
+                Deixe "Fim" como 0 para tocar até o final.
+            </small>
+            <div class="form-group">
+                <div class="slider-label">
+                    <label>Volume:</label>
+                    <span id="volumeValue">100%</span>
+                </div>
+                <input type="range" id="soundVolume" min="0" max="1" step="0.01" value="1" oninput="updateSliderLabels()">
+            </div>
+            
+            <div class="form-group">
+                 <div class="slider-label">
+                    <label>Velocidade:</label>
+                    <span id="speedValue">1.0x</span>
+                </div>
+                <input type="range" id="soundSpeed" min="0.5" max="2" step="0.1" value="1" oninput="updateSliderLabels()">
+            </div>
+
+            <div class="form-group form-group-check">
+                <input type="checkbox" id="soundLoop">
+                <label for="soundLoop">Repetir (Loop)</label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-add" onclick="saveSound()">💾 Salvar</button>
+                <button class="btn-remove" onclick="closeAddModal()">❌ Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const path = require('path');
+
+        let sounds = {};
+        let selectedSound = null;
+        let selectedFilePath = null;
+        let currentAudio = null;
+        let isCapturingHotkey = false;
+        let capturedKeys = new Set();
+        let stopAudioTimer = null; // Timer para cortar o áudio
+
+        loadConfig();
+
+        async function loadConfig() {
+            sounds = await ipcRenderer.invoke('load-config');
+            renderSounds();
+        }
+
+        async function saveConfig() {
+            await ipcRenderer.invoke('save-config', sounds);
+        }
+
+        function renderSounds() {
+            const container = document.getElementById('soundsContainer');
+            
+            if (Object.keys(sounds).length === 0) {
+                // ... (sem mudanças aqui) ...
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎼</div>
+                        <h3>Nenhum som adicionado ainda</h3>
+                        <p>Clique em "Adicionar Áudio" para começar</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            Object.entries(sounds).forEach(([name, data]) => {
+                const card = document.createElement('div');
+                card.className = 'sound-card';
+                if (selectedSound === name) {
+                    card.classList.add('selected');
+                }
+                
+                const fileName = path.basename(data.path);
+                
+                const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+                const speed = data.speed !== undefined ? data.speed : 1;
+                const loop = data.loop || false;
+                
+                // MUDANÇA: Adiciona info de tempo
+                const startTime = data.startTime || 0;
+                const endTime = data.endTime || 0;
+                const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+
+
+                card.innerHTML = `
+                    <div class="sound-name">${name}</div>
+                    <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
+                    <div class="sound-file">📄 ${fileName}</div>
+                    <div class="sound-details">
+                        <span>🔊 ${volume.toFixed(0)}%</span>
+                        <span>⏩ ${speed.toFixed(1)}x</span>
+                        <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
+                    </div>
+                    <div class="sound-details" style="border-top: none; padding-top: 5px;">
+                         <span>⏱️ ${timeText}</span>
+                    </div>
+                `;
+                
+                card.onclick = () => selectSoundCard(name);
+                card.ondblclick = () => playSound(name);
+                
+                container.appendChild(card);
+            });
+        }
+
+        function selectSoundCard(name) {
+            selectedSound = name;
+            renderSounds();
+        }
+
+        function updateSliderLabels() {
+            // ... (sem mudanças aqui) ...
+            try {
+                const vol = document.getElementById('soundVolume').value;
+                document.getElementById('volumeValue').textContent = `${Math.round(vol * 100)}%`;
+                
+                const speed = document.getElementById('soundSpeed').value;
+                document.getElementById('speedValue').textContent = `${parseFloat(speed).toFixed(1)}x`;
+            } catch (e) {
+                console.warn("Erro ao atualizar labels dos sliders:", e);
+            }
+        }
+
+        function openAddModal() {
+            document.getElementById('modalTitle').textContent = 'Adicionar Novo Som';
+            document.getElementById('originalSoundName').value = ''; 
+            
+            document.getElementById('soundName').value = '';
+            document.getElementById('soundHotkey').value = '';
+            document.getElementById('fileName').textContent = 'Nenhum arquivo selecionado';
+            selectedFilePath = null;
+
+            document.getElementById('soundVolume').value = 1;
+            document.getElementById('soundSpeed').value = 1;
+            document.getElementById('soundLoop').checked = false;
+            
+            // MUDANÇA: Reseta os campos de tempo
+            document.getElementById('soundStartTime').value = 0;
+            document.getElementById('soundEndTime').value = 0;
+
+            updateSliderLabels(); 
+            setupHotkeyCapture();
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+        function openEditModal() {
+            if (!selectedSound || !sounds[selectedSound]) {
+                alert('Selecione um som para editar!');
+                return;
+            }
+
+            const data = sounds[selectedSound];
+
+            document.getElementById('modalTitle').textContent = 'Editar Som';
+            document.getElementById('originalSoundName').value = selectedSound; 
+            
+            document.getElementById('soundName').value = selectedSound;
+            document.getElementById('soundHotkey').value = data.hotkey;
+            document.getElementById('fileName').textContent = path.basename(data.path);
+            selectedFilePath = data.path;
+
+            document.getElementById('soundVolume').value = data.volume !== undefined ? data.volume : 1;
+            document.getElementById('soundSpeed').value = data.speed !== undefined ? data.speed : 1;
+            document.getElementById('soundLoop').checked = data.loop || false;
+
+            // MUDANÇA: Carrega os campos de tempo
+            document.getElementById('soundStartTime').value = data.startTime || 0;
+            document.getElementById('soundEndTime').value = data.endTime || 0;
+
+            updateSliderLabels(); 
+            setupHotkeyCapture();
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+
+        function closeAddModal() {
+            // ... (sem mudanças aqui) ...
+            document.getElementById('addModal').style.display = 'none';
+            isCapturingHotkey = false;
+            capturedKeys.clear();
+            selectedFilePath = null;
+            document.getElementById('originalSoundName').value = '';
+        }
+
+        async function selectFile() {
+            // ... (sem mudanças aqui) ...
+            const filePath = await ipcRenderer.invoke('select-audio-file');
+            if (filePath) {
+                selectedFilePath = filePath;
+                document.getElementById('fileName').textContent = path.basename(filePath);
+            }
+        }
+
+        async function saveSound() {
+            const name = document.getElementById('soundName').value.trim();
+            const hotkey = document.getElementById('soundHotkey').value.trim();
+            const originalName = document.getElementById('originalSoundName').value;
+
+            const volume = parseFloat(document.getElementById('soundVolume').value);
+            const speed = parseFloat(document.getElementById('soundSpeed').value);
+            const loop = document.getElementById('soundLoop').checked;
+
+            // MUDANÇA: Salva os campos de tempo
+            const startTime = parseFloat(document.getElementById('soundStartTime').value) || 0;
+            const endTime = parseFloat(document.getElementById('soundEndTime').value) || 0;
+
+            if (!name) { /* ... (sem mudanças aqui) ... */ }
+            if (!hotkey) { /* ... (sem mudanças aqui) ... */ }
+            if (!selectedFilePath) { /* ... (sem mudanças aqui) ... */ }
+            if (name !== originalName && sounds[name]) { /* ... (sem mudanças aqui) ... */ }
+            if (originalName && originalName !== name) {
+                delete sounds[originalName];
+            }
+            
+            // MUDANÇA: Adiciona os campos de tempo ao objeto salvo
+            sounds[name] = {
+                path: selectedFilePath,
+                hotkey: hotkey,
+                volume: volume,
+                speed: speed,
+                loop: loop,
+                startTime: startTime,
+                endTime: endTime
+            };
+            
+            await saveConfig();
+            selectedSound = name; 
+            renderSounds();
+            closeAddModal();
+            
+            alert(`Som "${name}" salvo com sucesso!`);
+        }
+
+        async function removeSound() {
+            // ... (sem mudanças aqui) ...
+            if (!selectedSound) {
+                alert('Selecione um som para remover!');
+                return;
+            }
+            if (confirm(`Deseja remover o som "${selectedSound}"?`)) {
+                delete sounds[selectedSound];
+                await saveConfig();
+                selectedSound = null;
+                renderSounds();
+            }
+        }
+
+        function testSelected() {
+            // ... (sem mudanças aqui) ...
+            if (!selectedSound) {
+                alert('Selecione um som para testar!');
+                return;
+            }
+            playSound(selectedSound);
+        }
+
+        // 
+        // MUDANÇA PRINCIPAL: LÓGICA DE 'playSound'
+        //
+        function playSound(name) {
+            if (!sounds[name]) return;
+            
+            const data = sounds[name];
+
+            // Para o áudio anterior e limpa o timer
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio.src = ''; 
+                currentAudio = null;
+            }
+            if (stopAudioTimer) {
+                clearTimeout(stopAudioTimer);
+                stopAudioTimer = null;
+            }
+            
+            try {
+                currentAudio = new Audio(data.path);
+
+                const startTime = data.startTime || 0;
+                const endTime = data.endTime || 0;
+
+                currentAudio.volume = data.volume !== undefined ? data.volume : 1;
+                currentAudio.playbackRate = data.speed !== undefined ? data.speed : 1;
+                currentAudio.loop = data.loop || false;
+
+                // Define o ponto de início
+                currentAudio.currentTime = startTime;
+
+                // Inicia o áudio
+                currentAudio.play().catch(err => {
+                    console.error('Erro ao reproduzir áudio:', err);
+                    alert('Erro ao reproduzir o áudio. Verifique se o arquivo existe.');
+                    currentAudio = null;
+                });
+
+                // Se tiver um tempo de fim E não for loop, agenda para parar
+                if (endTime > startTime && !currentAudio.loop) {
+                    const durationInMs = (endTime - startTime) * 1000 / currentAudio.playbackRate;
+                    
+                    stopAudioTimer = setTimeout(() => {
+                        if (currentAudio) {
+                            currentAudio.pause();
+                            currentAudio.currentTime = startTime; // Reseta
+                        }
+                    }, durationInMs);
+                }
+
+                // Se for loop E tiver tempo de fim, usa 'timeupdate' para
+                // voltar ao início (cria um loop customizado)
+                if (endTime > startTime && currentAudio.loop) {
+                    currentAudio.addEventListener('timeupdate', function() {
+                        if (this.currentTime >= endTime) {
+                            this.currentTime = startTime; // Volta ao início
+                        }
+                    });
+                }
+
+            } catch (error) {
+                console.error('Erro ao criar Audio:', error);
+                alert('Erro ao carregar o áudio.');
+                currentAudio = null;
+            }
+        }
+
+        ipcRenderer.on('play-sound', (event, name) => {
+            playSound(name);
+        });
+
+        window.onclick = function(event) {
+            // ... (sem mudanças aqui) ...
+            const modal = document.getElementById('addModal');
+            if (event.target === modal) {
+                closeAddModal();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            // ... (sem mudanças aqui) ...
+            if (e.key === 'Enter' && document.getElementById('addModal').style.display === 'block') {
+                if (!isCapturingHotkey) {
+                    saveSound();
+                }
+            }
+            if (e.key === 'Escape') {
+                closeAddModal();
+            }
+        });
+
+        // Sistema de captura de atalhos (VERSÃO CORRIGIDA)
+        function setupHotkeyCapture() {
+            const hotkeyInput = document.getElementById('soundHotkey');
+
+            hotkeyInput.addEventListener('focus', () => {
+                isCapturingHotkey = true;
+                capturedKeys.clear();
+                hotkeyInput.value = '';
+                hotkeyInput.placeholder = 'Pressione as teclas...';
+            });
+
+            hotkeyInput.addEventListener('blur', () => {
+                isCapturingHotkey = false; // Garante que a captura pare
+                if (hotkeyInput.value === '') {
+                    hotkeyInput.placeholder = 'Clique aqui e pressione as teclas...';
+                }
+            });
+        }
+
+        //
+        // MUDANÇA: Lógica de captura de atalho
+        //
+        document.addEventListener('keydown', (e) => {
+            const hotkeyInput = document.getElementById('soundHotkey');
+            
+            if (isCapturingHotkey && document.getElementById('addModal').style.display === 'block') {
+                e.preventDefault();
+                
+                // MUDANÇA 1: Ignora SÓ Ctrl, Shift e Alt sozinhos (removemos 'Meta')
+                if (['Control', 'Shift', 'Alt'].includes(e.key)) {
+                    return;
+                }
+                
+                const keys = [];
+                
+                // MUDANÇA 2: Adiciona modificadores (removemos 'e.metaKey')
+                if (e.ctrlKey) {
+                    keys.push('CommandOrControl');
+                }
+                if (e.shiftKey) {
+                    keys.push('Shift');
+                }
+                if (e.altKey) {
+                    keys.push('Alt');
+                }
+                
+                let key = e.key;
+                
+                const specialKeys = {
+                    ' ': 'Space', 'ArrowUp': 'Up', 'ArrowDown': 'Down',
+                    'ArrowLeft': 'Left', 'ArrowRight': 'Right', 'Escape': 'Esc'
+                };
+                
+                if (specialKeys[key]) {
+                    key = specialKeys[key];
+                } else if (key.length === 1) {
+                    key = key.toUpperCase();
+                }
+                
+                // MUDANÇA 3: Adiciona a tecla principal (removemos 'SUPER')
+                if (!['CONTROL', 'SHIFT', 'ALT'].includes(key.toUpperCase())) {
+                     keys.push(key);
+                }
+               
+                const hotkey = keys.join('+');
+                hotkeyInput.value = hotkey;
+                
+                setTimeout(() => {
+                    isCapturingHotkey = false;
+                    hotkeyInput.blur();
+                }, 100);
+            }
+        });
+
+        function clearHotkey() {
+            // ... (sem mudanças aqui) ...
+            document.getElementById('soundHotkey').value = '';
+            capturedKeys.clear();
+        }
+    </script>
+</body>
+</html> -->
