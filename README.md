@@ -47,7 +47,7 @@ Você pode escolher **para onde o som será reproduzido**, seja um fone, uma pla
 1. Baixe o arquivo `.AppImage` na aba **[Releases](../../releases)**.
 2. Dê permissão de execução:
    ```bash
-   chmod +x soundboard-pro-1.0.0.AppImage
+   chmod +x Hahaha-x.x.x.AppImage
 3. (Dependência) AppImages podem exigir o FUSE v2:
    ```bash
    sudo apt install libfuse2t64
