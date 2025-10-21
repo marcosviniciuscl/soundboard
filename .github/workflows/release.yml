@@ -30,7 +30,7 @@ jobs:
 
 
       - name: Build application
-        run: npm run dist
+        run: npm run build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
