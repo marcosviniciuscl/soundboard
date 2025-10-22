@@ -134,7 +134,7 @@
         </div>
     </div>
 
-    <div id="addModal" class="modal">
+    <!-- <div id="addModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeAddModal()">&times;</span>
             <h2 class="modal-header" id="modalTitle">Adicionar Novo Som</h2>
@@ -198,7 +198,78 @@
                 <button class="btn-remove" onclick="closeAddModal()">❌ Cancelar</button>
             </div>
         </div>
+    </div> -->
+
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddModal()">&times;</span>
+            <h2 class="modal-header" id="modalTitle">Adicionar Novo Som</h2>
+            <input type="hidden" id="originalSoundName" value="">
+            <div class="form-group">
+                <label>Nome do Som:</label>
+                <input type="text" id="soundName" placeholder="Ex: Risada do Chaves">
+            </div>
+            <div class="form-group">
+                <label>Atalho:</label>
+                <input type="text" id="soundHotkey" placeholder="Clique aqui e pressione as teclas..." readonly style="cursor: pointer;">
+                <small style="color: #888; display: block; margin-top: 5px;">
+                    Use Ctrl, Shift, Alt.
+                </small>
+                <button class="btn-test" onclick="clearHotkey()" style="margin-top: 8px; width: 100%;">
+                    🔄 Limpar Atalho
+                </button>
+            </div>
+            <div class="form-group">
+                <label>Arquivo de Áudio:</label>
+                <div class="file-selector">
+                    <div class="file-name" id="fileName">Nenhum arquivo selecionado</div>
+                    <button class="btn-test" onclick="selectFile()" style="flex: 0 0 auto;">
+                        📁 Escolher
+                    </button>
+                </div>
+                <small id="audioDuration" style="color: #888; display: block; margin-top: 5px; min-height: 1.2em;"></small>
+            </div>
+            <div class="form-group form-group-inline">
+                <div>
+                    <label>Início (segundos):</label>
+                    <input type="number" id="soundStartTime" min="0" step="0.1" value="0">
+                </div>
+                <div>
+                    <label>Fim (segundos):</label>
+                    <input type="number" id="soundEndTime" min="0" step="0.1" value="0">
+                </div>
+            </div>
+             <small style="color: #888; display: block; margin-top: -15px; margin-bottom: 15px;">
+                Deixe "Fim" como 0 para tocar até o final.
+            </small>
+            <div class="form-group">
+                <div class="slider-label">
+                    <label>Volume:</label>
+                    <span id="volumeValue">100%</span>
+                </div>
+                <input type="range" id="soundVolume" min="0" max="1" step="0.01" value="1" oninput="updateSliderLabels()">
+            </div>
+            <div class="form-group">
+                 <div class="slider-label">
+                    <label>Velocidade:</label>
+                    <span id="speedValue">1.0x</span>
+                </div>
+                <input type="range" id="soundSpeed" min="0.5" max="2" step="0.1" value="1" oninput="updateSliderLabels()">
+            </div>
+            <div class="form-group form-group-check">
+                <input type="checkbox" id="soundLoop">
+                <label for="soundLoop">Repetir (Loop)</label>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-add" onclick="saveSound()">💾 Salvar</button>
+                <!-- <button class="btn-test" type="button" onclick="previewSound(event)">▶️ Prévia</button> -->
+                <button class="btn-remove" type="button" onclick="closeAddModal()">❌ Cancelar</button>
+            </div>
+        </div>
     </div>
+
 
     <script>
         const { ipcRenderer } = require('electron');
@@ -210,6 +281,8 @@
         let selectedFilePath = null;
         let currentAudio = null;
         let currentPlayingSoundName = null;
+        let previewAudio = null;
+        let previewStopTimer = null;
         let isCapturingHotkey = false;
         let capturedKeys = new Set();
         let stopAudioTimer = null;
@@ -265,6 +338,128 @@
             config.settings.audioDevice = selectedDeviceId;
             await saveConfig();
             alert('Saída de áudio salva!');
+        }
+
+        function loadAudioDuration(filePath, callback) {
+            const durationEl = document.getElementById('audioDuration');
+            durationEl.textContent = 'Carregando duração...';
+            
+            try {
+                const audio = new Audio(filePath);
+                audio.onloadedmetadata = () => {
+                    const duration = audio.duration;
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = Math.floor(duration % 60);
+                    durationEl.textContent = `Duração Total: ${minutes}:${seconds.toString().padStart(2, '0')} (${duration.toFixed(2)}s)`;
+                    if (callback) callback(duration); // Chama o callback com a duração
+                };
+                audio.onerror = () => {
+                    durationEl.textContent = 'Erro ao carregar o arquivo de áudio.';
+                };
+            } catch (err) {
+                durationEl.textContent = 'Erro ao carregar o áudio.';
+                console.error(err);
+            }
+        }
+
+        async function previewSound(event) {
+            event.preventDefault(); // Impede qualquer comportamento padrão do botão
+            const button = event.target.closest('button'); 
+
+            // 1. Se o preview já está tocando, pare-o
+            if (previewAudio) {
+                previewAudio.pause();
+                previewAudio.currentTime = 0;
+                previewAudio.src = '';
+                previewAudio = null;
+                if (previewStopTimer) clearTimeout(previewStopTimer);
+                previewStopTimer = null;
+                button.innerHTML = "▶️ Prévia";
+                return;
+            }
+
+            // 2. Verifique se um arquivo foi selecionado
+            if (!selectedFilePath) {
+                alert('Por favor, selecione um arquivo de áudio primeiro!');
+                return;
+            }
+
+            // 3. Pare qualquer áudio principal que esteja tocando
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio.src = ''; 
+                currentAudio = null;
+                currentPlayingSoundName = null;
+                if (stopAudioTimer) {
+                    clearTimeout(stopAudioTimer);
+                    stopAudioTimer = null;
+                }
+            }
+            
+            // 4. Pegue todas as configurações do modal
+            const volume = parseFloat(document.getElementById('soundVolume').value);
+            const speed = parseFloat(document.getElementById('soundSpeed').value);
+            const loop = document.getElementById('soundLoop').checked;
+            const startTime = parseFloat(document.getElementById('soundStartTime').value) || 0;
+            const endTime = parseFloat(document.getElementById('soundEndTime').value) || 0;
+
+            try {
+                // 5. Crie e configure o áudio de preview
+                previewAudio = new Audio(selectedFilePath);
+                previewAudio.volume = volume;
+                previewAudio.playbackRate = speed;
+                previewAudio.loop = loop;
+                previewAudio.currentTime = startTime;
+
+                // 6. Defina o dispositivo de saída de áudio (o mesmo selecionado no dropdown principal)
+                const deviceId = document.getElementById('audioOutputSelect').value || 'default';
+                if (deviceId !== 'default') {
+                    try {
+                        await previewAudio.setSinkId(deviceId);
+                    } catch (err) {
+                        console.error('Falha ao definir saída de áudio para prévia:', err);
+                        alert('Falha ao definir saída de áudio para prévia.');
+                    }
+                }
+
+                // 7. Toque o áudio
+                await previewAudio.play();
+                button.innerHTML = "⏹️ Parar"; // Mude o texto do botão
+
+                // 8. Limpe quando o áudio terminar
+                previewAudio.addEventListener('ended', () => {
+                    button.innerHTML = "▶️ Prévia";
+                    previewAudio = null; // Limpe o objeto
+                });
+                
+                // 9. Lógica para 'endTime' (copiada de playSound)
+                if (endTime > startTime && !previewAudio.loop) {
+                    const durationInMs = (endTime - startTime) * 1000 / previewAudio.playbackRate;
+                    previewStopTimer = setTimeout(() => {
+                        if (previewAudio) {
+                            previewAudio.pause();
+                            previewAudio.currentTime = startTime;
+                            // Dispara o evento 'ended' manualmente para resetar o botão
+                            previewAudio.dispatchEvent(new Event('ended')); 
+                        }
+                    }, durationInMs);
+                }
+
+                if (endTime > startTime && previewAudio.loop) {
+                    previewAudio.addEventListener('timeupdate', function() {
+                        if (this.currentTime >= endTime) {
+                            this.currentTime = startTime;
+                        }
+                    });
+                }
+                
+            } catch (err) {
+                console.error('Erro ao reproduzir prévia:', err);
+                alert('Erro ao reproduzir a prévia. Verifique o arquivo.');
+                if (previewAudio) previewAudio = null;
+                button.innerHTML = "▶️ Prévia";
+            }
         }
 
         function renderSounds() {
@@ -333,12 +528,30 @@
             } catch (e) {}
         }
 
+        // function openAddModal() {
+        //     document.getElementById('modalTitle').textContent = 'Adicionar Novo Som';
+        //     document.getElementById('originalSoundName').value = ''; 
+        //     document.getElementById('soundName').value = '';
+        //     document.getElementById('soundHotkey').value = '';
+        //     document.getElementById('fileName').textContent = 'Nenhum arquivo selecionado';
+        //     selectedFilePath = null;
+        //     document.getElementById('soundVolume').value = 1;
+        //     document.getElementById('soundSpeed').value = 1;
+        //     document.getElementById('soundLoop').checked = false;
+        //     document.getElementById('soundStartTime').value = 0;
+        //     document.getElementById('soundEndTime').value = 0;
+        //     updateSliderLabels(); 
+        //     setupHotkeyCapture();
+        //     document.getElementById('addModal').style.display = 'block';
+        // }
+
         function openAddModal() {
             document.getElementById('modalTitle').textContent = 'Adicionar Novo Som';
             document.getElementById('originalSoundName').value = ''; 
             document.getElementById('soundName').value = '';
             document.getElementById('soundHotkey').value = '';
             document.getElementById('fileName').textContent = 'Nenhum arquivo selecionado';
+            document.getElementById('audioDuration').textContent = '';
             selectedFilePath = null;
             document.getElementById('soundVolume').value = 1;
             document.getElementById('soundSpeed').value = 1;
@@ -349,6 +562,30 @@
             setupHotkeyCapture();
             document.getElementById('addModal').style.display = 'block';
         }
+
+        // function openEditModal() {
+        //     if (!selectedSound || !config.sounds[selectedSound]) {
+        //         alert('Selecione um som para editar!');
+        //         return;
+        //     }
+
+        //     const data = config.sounds[selectedSound]; 
+
+        //     document.getElementById('modalTitle').textContent = 'Editar Som';
+        //     document.getElementById('originalSoundName').value = selectedSound; 
+        //     document.getElementById('soundName').value = selectedSound;
+        //     document.getElementById('soundHotkey').value = data.hotkey;
+        //     document.getElementById('fileName').textContent = path.basename(data.path);
+        //     selectedFilePath = data.path;
+        //     document.getElementById('soundVolume').value = data.volume !== undefined ? data.volume : 1;
+        //     document.getElementById('soundSpeed').value = data.speed !== undefined ? data.speed : 1;
+        //     document.getElementById('soundLoop').checked = data.loop || false;
+        //     document.getElementById('soundStartTime').value = data.startTime || 0;
+        //     document.getElementById('soundEndTime').value = data.endTime || 0;
+        //     updateSliderLabels(); 
+        //     setupHotkeyCapture();
+        //     document.getElementById('addModal').style.display = 'block';
+        // }
 
         function openEditModal() {
             if (!selectedSound || !config.sounds[selectedSound]) {
@@ -364,6 +601,9 @@
             document.getElementById('soundHotkey').value = data.hotkey;
             document.getElementById('fileName').textContent = path.basename(data.path);
             selectedFilePath = data.path;
+            
+            loadAudioDuration(selectedFilePath); // <<< MUDANÇA: Carrega a duração
+            
             document.getElementById('soundVolume').value = data.volume !== undefined ? data.volume : 1;
             document.getElementById('soundSpeed').value = data.speed !== undefined ? data.speed : 1;
             document.getElementById('soundLoop').checked = data.loop || false;
@@ -375,19 +615,56 @@
         }
 
 
+        // function closeAddModal() {
+        //     document.getElementById('addModal').style.display = 'none';
+        //     isCapturingHotkey = false;
+        //     capturedKeys.clear();
+        //     selectedFilePath = null;
+        //     document.getElementById('originalSoundName').value = '';
+        // }
+
         function closeAddModal() {
+            // --- MUDANÇA: Para o áudio de preview se estiver tocando ---
+            if (previewAudio) {
+                previewAudio.pause();
+                previewAudio.src = '';
+                previewAudio = null;
+                if (previewStopTimer) clearTimeout(previewStopTimer);
+                previewStopTimer = null;
+            }
+            // --- Fim da mudança ---
+
             document.getElementById('addModal').style.display = 'none';
             isCapturingHotkey = false;
             capturedKeys.clear();
             selectedFilePath = null;
             document.getElementById('originalSoundName').value = '';
+            document.getElementById('audioDuration').textContent = ''; // Limpa a duração
         }
+
+        // async function selectFile() {
+        //     const filePath = await ipcRenderer.invoke('select-audio-file');
+        //     if (filePath) {
+        //         selectedFilePath = filePath;
+        //         document.getElementById('fileName').textContent = path.basename(filePath);
+        //     }
+        // }
 
         async function selectFile() {
             const filePath = await ipcRenderer.invoke('select-audio-file');
             if (filePath) {
                 selectedFilePath = filePath;
                 document.getElementById('fileName').textContent = path.basename(filePath);
+                
+                // --- MUDANÇA: Chama a função para carregar a duração ---
+                // E passa um callback para auto-preencher o campo "Fim"
+                loadAudioDuration(filePath, (duration) => {
+                    const endTimeInput = document.getElementById('soundEndTime');
+                    // Só auto-preenche se o valor for 0
+                    if (parseFloat(endTimeInput.value) === 0) {
+                         endTimeInput.value = duration.toFixed(2);
+                    }
+                });
             }
         }
 
