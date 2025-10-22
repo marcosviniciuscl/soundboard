@@ -13,7 +13,10 @@
         "hotkeys",
         "audio"
     ],
-    "author": "Marcos Vinicius Cruz Lima",
+    "author": {
+        "name": "Marcos Vinicius Cruz Lima",
+        "email": "marcosviniciuscl@outlook.com"
+    },
     "license": "MIT",
     "devDependencies": {
         "electron": "^28.0.0",
@@ -41,13 +44,17 @@
             "icon": "icon.ico"
         },
         "linux": {
-            "target": "AppImage",
+            "target": [
+                "AppImage",
+                "deb"
+            ],
             "category": "AudioVideo",
             "icon": "icon.png"
         },
-        "mac": {
-            "target": "dmg",
-            "icon": "icon.png"
+        "deb": {
+            "depends": [
+                "libfuse2"
+            ]
         }
     }
 }
