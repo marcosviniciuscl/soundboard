@@ -103,6 +103,62 @@
             color: #ffffff;
         }
 
+        /* MUDANÇA: Estilos para a visualização em tabela */
+        .sounds-table-container {
+            width: 100%;
+            display: none; /* Começa escondido */
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden; /* Para o border-radius funcionar */
+        }
+
+        .sounds-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .sounds-table th, .sounds-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sounds-table th {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4CAF50;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .sounds-table tr {
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .sounds-table tr:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .sounds-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .sounds-table tr.selected {
+            border-color: #2196F3; /* Mesmo que o card */
+            background: rgba(33, 150, 243, 0.1); 
+        }
+
+        .sounds-table .sound-file {
+            max-width: 200px; /* Limita a largura do nome do arquivo */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .sounds-table .sound-hotkey {
+            font-size: 1em; /* Ajusta o tamanho do atalho na tabela */
+        }
     </style>
 </head>
 <body>
@@ -117,9 +173,15 @@
             <button class="btn-edit" onclick="openEditModal()">✏️ Editar Selecionado</button>
             <button class="btn-remove" onclick="removeSound()">🗑️ Remover Selecionado</button>
             <button class="btn-test" onclick="testSelected()">▶️ Testar Som</button>
+            <button id="viewToggleButton" class="btn-test" onclick="toggleView()" style="min-width: 60px; justify-content: center; font-size: 1.5em; padding: 10px;">
+                ☰
+            </button>
         </div>
 
         <div id="soundsContainer" class="sounds-grid">
+            </div>
+        
+        <div id="tableContainer" class="sounds-table-container">
             </div>
 
         <div class="audio-output-selector">
@@ -286,6 +348,7 @@
         let isCapturingHotkey = false;
         let capturedKeys = new Set();
         let stopAudioTimer = null;
+        let currentView = 'grid';
 
         async function loadConfig() {
             config = await ipcRenderer.invoke('load-config');
@@ -303,6 +366,26 @@
 
         async function saveConfig() {
             await ipcRenderer.invoke('save-config', config);
+        }
+
+        function toggleView() {
+            const gridContainer = document.getElementById('soundsContainer');
+            const tableContainer = document.getElementById('tableContainer');
+            const toggleButton = document.getElementById('viewToggleButton');
+
+            if (currentView === 'grid') {
+                currentView = 'table';
+                toggleButton.innerHTML = "▦"; // <<< MUDANÇA: Ícone de Grade
+                gridContainer.style.display = 'none';
+                tableContainer.style.display = 'block';
+            } else {
+                currentView = 'grid';
+                toggleButton.innerHTML = "☰"; // <<< MUDANÇA: Ícone de Tabela
+                gridContainer.style.display = 'grid'; // Use 'grid' para layout correto
+                tableContainer.style.display = 'none';
+            }
+            
+            renderSounds();
         }
 
         async function loadAudioDevices() {
@@ -462,61 +545,289 @@
             }
         }
 
-        function renderSounds() {
-            const container = document.getElementById('soundsContainer');
+        // function renderSounds() {
+        //     const container = document.getElementById('soundsContainer');
             
-            if (Object.keys(config.sounds).length === 0) {
-                container.innerHTML = `
+        //     if (Object.keys(config.sounds).length === 0) {
+        //         container.innerHTML = `
+        //             <div class="empty-state">
+        //                 <div class="empty-state-icon">🎼</div>
+        //                 <h3>Nenhum som adicionado ainda</h3>
+        //                 <p>Clique em "Adicionar Áudio" para começar</p>
+        //             </div>
+        //         `;
+        //         return;
+        //     }
+
+        //     container.innerHTML = '';
+            
+        //     Object.entries(config.sounds).forEach(([name, data]) => {
+        //         const card = document.createElement('div');
+        //         card.className = 'sound-card';
+        //         if (selectedSound === name) {
+        //             card.classList.add('selected');
+        //         }
+                
+        //         const fileName = path.basename(data.path);
+        //         const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+        //         const speed = data.speed !== undefined ? data.speed : 1;
+        //         const loop = data.loop || false;
+        //         const startTime = data.startTime || 0;
+        //         const endTime = data.endTime || 0;
+        //         const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+
+        //         card.innerHTML = `
+        //             <div class="sound-name">${name}</div>
+        //             <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
+        //             <div class="sound-file">📄 ${fileName}</div>
+        //             <div class="sound-details">
+        //                 <span>🔊 ${volume.toFixed(0)}%</span>
+        //                 <span>⏩ ${speed.toFixed(1)}x</span>
+        //                 <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
+        //             </div>
+        //             <div class="sound-details" style="border-top: none; padding-top: 5px;">
+        //                  <span>⏱️ ${timeText}</span>
+        //             </div>
+        //         `;
+                
+        //         card.onclick = () => selectSoundCard(name);
+        //         card.ondblclick = () => playSound(name);
+                
+        //         container.appendChild(card);
+        //     });
+        // }
+
+        // function renderSounds() {
+        //     const gridContainer = document.getElementById('soundsContainer');
+        //     const tableContainer = document.getElementById('tableContainer');
+
+        //     // Pega as entradas do Objeto (como era antes)
+        //     const soundEntries = Object.entries(config.sounds);
+
+        //     // 1. Lógica do Estado Vazio
+        //     if (soundEntries.length === 0) {
+        //         const emptyHtml = `
+        //             <div class="empty-state">
+        //                 <div class="empty-state-icon">🎼</div>
+        //                 <h3>Nenhum som adicionado ainda</h3>
+        //                 <p>Clique em "Adicionar Áudio" para começar</p>
+        //             </div>
+        //         `;
+                
+        //         if (currentView === 'grid') {
+        //             gridContainer.innerHTML = emptyHtml;
+        //             tableContainer.innerHTML = ''; // Limpa a outra view
+        //         } else {
+        //             tableContainer.innerHTML = emptyHtml;
+        //             gridContainer.innerHTML = ''; // Limpa a outra view
+        //         }
+        //         return; // Para aqui
+        //     }
+
+        //     // 2. Limpa ambos os containers
+        //     gridContainer.innerHTML = '';
+        //     tableContainer.innerHTML = '';
+
+        //     // 3. Renderiza a view correta
+        //     if (currentView === 'grid') {
+        //         // --- LÓGICA DA GRADE (a que você já tinha) ---
+        //         soundEntries.forEach(([name, data]) => {
+        //             const card = document.createElement('div');
+        //             card.className = 'sound-card';
+        //             if (selectedSound === name) {
+        //                 card.classList.add('selected');
+        //             }
+                    
+        //             const fileName = path.basename(data.path);
+        //             const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+        //             const speed = data.speed !== undefined ? data.speed : 1;
+        //             const loop = data.loop || false;
+        //             const startTime = data.startTime || 0;
+        //             const endTime = data.endTime || 0;
+        //             const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+
+        //             card.innerHTML = `
+        //                 <div class="sound-name">${name}</div>
+        //                 <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
+        //                 <div class="sound-file">📄 ${fileName}</div>
+        //                 <div class="sound-details">
+        //                     <span>🔊 ${volume.toFixed(0)}%</span>
+        //                     <span>⏩ ${speed.toFixed(1)}x</span>
+        //                     <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
+        //                 </div>
+        //                 <div class="sound-details" style="border-top: none; padding-top: 5px;">
+        //                      <span>⏱️ ${timeText}</span>
+        //                 </div>
+        //             `;
+                    
+        //             card.onclick = () => selectSoundCard(name);
+        //             card.ondblclick = () => playSound(name);
+                    
+        //             gridContainer.appendChild(card);
+        //         });
+
+        //     } else {
+        //         // --- LÓGICA DA TABELA (Nova) ---
+        //         let tableHtml = `
+        //             <table class="sounds-table">
+        //                 <thead>
+        //                     <tr>
+        //                         <th>Nome</th>
+        //                         <th>Atalho</th>
+        //                         <th>Arquivo</th>
+        //                         <th>Volume</th>
+        //                         <th>Velocidade</th>
+        //                         <th>Loop</th>
+        //                     </tr>
+        //                 </thead>
+        //                 <tbody>
+        //         `;
+
+        //         soundEntries.forEach(([name, data]) => {
+        //             const isSelected = (selectedSound === name) ? 'selected' : '';
+        //             const fileName = path.basename(data.path);
+        //             const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+        //             const speed = data.speed !== undefined ? data.speed : 1;
+        //             const loop = data.loop ? 'Sim' : 'Não';
+
+        //             // Usamos JSON.stringify(name) para lidar com nomes que 
+        //             // possam ter aspas ou caracteres especiais com segurança
+        //             tableHtml += `
+        //                 <tr class="${isSelected}" 
+        //                     onclick="selectSoundCard(${JSON.stringify(name)})" 
+        //                     ondblclick="playSound(${JSON.stringify(name)})">
+                            
+        //                     <td>${name}</td>
+        //                     <td><span class="sound-hotkey">${data.hotkey}</span></td>
+        //                     <td class="sound-file" title="${data.path}">${fileName}</td>
+        //                     <td>${volume.toFixed(0)}%</td>
+        //                     <td>${speed.toFixed(1)}x</td>
+        //                     <td>${loop}</td>
+        //                 </tr>
+        //             `;
+        //         });
+
+        //         tableHtml += `</tbody></table>`;
+        //         tableContainer.innerHTML = tableHtml;
+        //     }
+        // }
+
+        function renderSounds() {
+            const gridContainer = document.getElementById('soundsContainer');
+            const tableContainer = document.getElementById('tableContainer');
+
+            const soundEntries = Object.entries(config.sounds);
+
+            // 1. Lógica do Estado Vazio
+            if (soundEntries.length === 0) {
+                const emptyHtml = `
                     <div class="empty-state">
                         <div class="empty-state-icon">🎼</div>
                         <h3>Nenhum som adicionado ainda</h3>
                         <p>Clique em "Adicionar Áudio" para começar</p>
                     </div>
                 `;
+                
+                if (currentView === 'grid') {
+                    gridContainer.innerHTML = emptyHtml;
+                    tableContainer.innerHTML = ''; 
+                } else {
+                    tableContainer.innerHTML = emptyHtml;
+                    gridContainer.innerHTML = ''; 
+                }
                 return;
             }
 
-            container.innerHTML = '';
-            
-            Object.entries(config.sounds).forEach(([name, data]) => {
-                const card = document.createElement('div');
-                card.className = 'sound-card';
-                if (selectedSound === name) {
-                    card.classList.add('selected');
-                }
-                
-                const fileName = path.basename(data.path);
-                const volume = (data.volume !== undefined ? data.volume : 1) * 100;
-                const speed = data.speed !== undefined ? data.speed : 1;
-                const loop = data.loop || false;
-                const startTime = data.startTime || 0;
-                const endTime = data.endTime || 0;
-                const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+            // 2. Limpa ambos os containers
+            gridContainer.innerHTML = '';
+            tableContainer.innerHTML = '';
 
-                card.innerHTML = `
-                    <div class="sound-name">${name}</div>
-                    <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
-                    <div class="sound-file">📄 ${fileName}</div>
-                    <div class="sound-details">
-                        <span>🔊 ${volume.toFixed(0)}%</span>
-                        <span>⏩ ${speed.toFixed(1)}x</span>
-                        <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
-                    </div>
-                    <div class="sound-details" style="border-top: none; padding-top: 5px;">
-                         <span>⏱️ ${timeText}</span>
-                    </div>
+            // 3. Renderiza a view correta
+            if (currentView === 'grid') {
+                // --- LÓGICA DA GRADE ---
+                soundEntries.forEach(([name, data]) => {
+                    const card = document.createElement('div');
+                    card.className = 'sound-card';
+                    if (selectedSound === name) {
+                        card.classList.add('selected');
+                    }
+                    
+                    const fileName = path.basename(data.path);
+                    const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+                    const speed = data.speed !== undefined ? data.speed : 1;
+                    const loop = data.loop || false;
+                    const startTime = data.startTime || 0;
+                    const endTime = data.endTime || 0;
+                    const timeText = (endTime > startTime) ? `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s` : 'Completo';
+
+                    card.innerHTML = `
+                        <div class="sound-name">${name}</div>
+                        <div class="sound-hotkey">⌨️ ${data.hotkey}</div>
+                        <div class="sound-file">📄 ${fileName}</div>
+                        <div class="sound-details">
+                            <span>🔊 ${volume.toFixed(0)}%</span>
+                            <span>⏩ ${speed.toFixed(1)}x</span>
+                            <span>${loop ? '🔄 Repetir' : '▶️ Tocar 1x'}</span>
+                        </div>
+                        <div class="sound-details" style="border-top: none; padding-top: 5px;">
+                             <span>⏱️ ${timeText}</span>
+                        </div>
+                    `;
+                    
+                    card.onclick = () => selectSoundCard(name);
+                    // MUDANÇA: A linha 'card.ondblclick' foi removida.
+                    
+                    gridContainer.appendChild(card);
+                });
+
+            } else {
+                // --- LÓGICA DA TABELA ---
+                let tableHtml = `
+                    <table class="sounds-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Atalho</th>
+                                <th>Arquivo</th>
+                                <th>Volume</th>
+                                <th>Velocidade</th>
+                                <th>Loop</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                 `;
-                
-                card.onclick = () => selectSoundCard(name);
-                card.ondblclick = () => playSound(name);
-                
-                container.appendChild(card);
-            });
+
+                soundEntries.forEach(([name, data]) => {
+                    const isSelected = (selectedSound === name) ? 'selected' : '';
+                    const fileName = path.basename(data.path);
+                    const volume = (data.volume !== undefined ? data.volume : 1) * 100;
+                    const speed = data.speed !== undefined ? data.speed : 1;
+                    const loop = data.loop ? 'Sim' : 'Não';
+
+                    // MUDANÇA: O 'ondblclick' foi removido da tag <tr>
+                    tableHtml += `
+                        <tr class="${isSelected}" 
+                            onclick="selectSoundCard(${JSON.stringify(name)})">
+                            
+                            <td>${name}</td>
+                            <td><span class="sound-hotkey">${data.hotkey}</span></td>
+                            <td class="sound-file" title="${data.path}">${fileName}</td>
+                            <td>${volume.toFixed(0)}%</td>
+                            <td>${speed.toFixed(1)}x</td>
+                            <td>${loop}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += `</tbody></table>`;
+                tableContainer.innerHTML = tableHtml;
+            }
         }
 
         function selectSoundCard(name) {
             selectedSound = name;
             renderSounds();
+            playSound(name);
         }
 
         function updateSliderLabels() {
