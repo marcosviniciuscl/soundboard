@@ -209,6 +209,7 @@
         let selectedSound = null;
         let selectedFilePath = null;
         let currentAudio = null;
+        let currentPlayingSoundName = null;
         let isCapturingHotkey = false;
         let capturedKeys = new Set();
         let stopAudioTimer = null;
@@ -451,11 +452,102 @@
             playSound(selectedSound);
         }
 
+        // async function playSound(name) {
+        //     if (!config.sounds[name]) return; 
+            
+        //     const data = config.sounds[name]; 
+
+        //     if (currentAudio) {
+        //         currentAudio.pause();
+        //         currentAudio.currentTime = 0;
+        //         currentAudio.src = ''; 
+        //         currentAudio = null;
+        //     }
+        //     if (stopAudioTimer) {
+        //         clearTimeout(stopAudioTimer);
+        //         stopAudioTimer = null;
+        //     }
+            
+        //     try {
+        //         currentAudio = new Audio(data.path);
+
+        //         const startTime = data.startTime || 0;
+        //         const endTime = data.endTime || 0;
+
+        //         currentAudio.volume = data.volume !== undefined ? data.volume : 1;
+        //         currentAudio.playbackRate = data.speed !== undefined ? data.speed : 1;
+        //         currentAudio.loop = data.loop || false;
+        //         currentAudio.currentTime = startTime;
+
+        //         const deviceId = config.settings.audioDevice || 'default';
+        //         if (deviceId !== 'default') {
+        //             try {
+        //                 await currentAudio.setSinkId(deviceId);
+        //             } catch (err) {
+        //                 console.error('Falha ao definir a saída de áudio:', err);
+        //                 alert('Erro! Não foi possível alterar a saída de áudio. Voltando para o Padrão.');
+        //                 config.settings.audioDevice = 'default';
+        //                 document.getElementById('audioOutputSelect').value = 'default';
+        //                 await saveConfig();
+        //             }
+        //         }
+
+        //         currentAudio.play().catch(err => {
+        //             console.error('Erro ao reproduzir áudio:', err);
+        //             alert('Erro ao reproduzir o áudio. Verifique se o arquivo existe.');
+        //             currentAudio = null;
+        //         });
+
+        //         if (endTime > startTime && !currentAudio.loop) {
+        //             const durationInMs = (endTime - startTime) * 1000 / currentAudio.playbackRate;
+        //             stopAudioTimer = setTimeout(() => {
+        //                 if (currentAudio) {
+        //                     currentAudio.pause();
+        //                     currentAudio.currentTime = startTime;
+        //                 }
+        //             }, durationInMs);
+        //         }
+
+        //         if (endTime > startTime && currentAudio.loop) {
+        //             currentAudio.addEventListener('timeupdate', function() {
+        //                 if (this.currentTime >= endTime) {
+        //                     this.currentTime = startTime;
+        //                 }
+        //             });
+        //         }
+
+        //     } catch (error) {
+        //         console.error('Erro ao criar Audio:', error);
+        //         alert('Erro ao carregar o áudio.');
+        //         currentAudio = null;
+        //     }
+        // }
+
         async function playSound(name) {
             if (!config.sounds[name]) return; 
             
             const data = config.sounds[name]; 
 
+            // --- NOVO BLOCO DE CÓDIGO ---
+            // Verifica se o som ATUAL é o MESMO que foi pedido
+            if (currentAudio && currentPlayingSoundName === name && !currentAudio.paused) {
+                // É o mesmo som, e ele está tocando. Pare ele.
+                currentAudio.pause();
+                currentAudio.currentTime = 0; 
+                currentAudio.src = ''; // Limpa a fonte
+                currentAudio = null; // Descarta o áudio
+                currentPlayingSoundName = null; // Limpa o nome
+                
+                if (stopAudioTimer) {
+                    clearTimeout(stopAudioTimer);
+                    stopAudioTimer = null;
+                }
+                return; // Sai da função
+            }
+            // --- FIM DO NOVO BLOCO ---
+
+            // Se chegou aqui, ou é um som diferente, ou nenhum som estava tocando.
+            // Pare qualquer som que ESTIVESSE tocando (código que já existia)
             if (currentAudio) {
                 currentAudio.pause();
                 currentAudio.currentTime = 0;
@@ -467,8 +559,10 @@
                 stopAudioTimer = null;
             }
             
+            // Toca o novo som
             try {
                 currentAudio = new Audio(data.path);
+                currentPlayingSoundName = name; // <<< NOVO: Guarda o nome do som atual
 
                 const startTime = data.startTime || 0;
                 const endTime = data.endTime || 0;
@@ -477,6 +571,11 @@
                 currentAudio.playbackRate = data.speed !== undefined ? data.speed : 1;
                 currentAudio.loop = data.loop || false;
                 currentAudio.currentTime = startTime;
+
+                // <<< NOVO: Limpa o nome quando o áudio terminar sozinho
+                currentAudio.addEventListener('ended', () => {
+                    currentPlayingSoundName = null;
+                });
 
                 const deviceId = config.settings.audioDevice || 'default';
                 if (deviceId !== 'default') {
@@ -495,14 +594,18 @@
                     console.error('Erro ao reproduzir áudio:', err);
                     alert('Erro ao reproduzir o áudio. Verifique se o arquivo existe.');
                     currentAudio = null;
+                    currentPlayingSoundName = null; // <<< NOVO: Limpa em caso de erro
                 });
 
+                // Lógica do temporizador (endTime)
                 if (endTime > startTime && !currentAudio.loop) {
                     const durationInMs = (endTime - startTime) * 1000 / currentAudio.playbackRate;
                     stopAudioTimer = setTimeout(() => {
-                        if (currentAudio) {
+                        // NOVO: Verifica se ainda é o som certo antes de parar
+                        if (currentAudio && currentPlayingSoundName === name) { 
                             currentAudio.pause();
                             currentAudio.currentTime = startTime;
+                            currentPlayingSoundName = null; // <<< NOVO: Limpa quando o timer para
                         }
                     }, durationInMs);
                 }
@@ -519,6 +622,7 @@
                 console.error('Erro ao criar Audio:', error);
                 alert('Erro ao carregar o áudio.');
                 currentAudio = null;
+                currentPlayingSoundName = null; // <<< NOVO: Limpa em caso de erro
             }
         }
 
