@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, globalShortcut, Tray, Menu } = requ
 const { autoUpdater } = require('electron-updater'); // Importa o autoUpdater
 const path = require('path');
 const fs = require('fs');
+const loudness = require('loudness');
 
 // --- Trava de Instância Única ---
 const gotTheLock = app.requestSingleInstanceLock();
@@ -123,6 +124,26 @@ function createWindow() {
       properties: ['openFile']
     });
     return !canceled && filePaths.length > 0 ? filePaths[0] : null;
+  });
+
+  ipcMain.handle('get-system-volume', async () => {
+    try {
+      const volume = await loudness.getVolume();
+      return volume;
+    } catch (err) {
+      console.error('Erro ao obter volume:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('set-system-volume', async (event, volume) => {
+    try {
+      await loudness.setVolume(volume);
+      return { success: true };
+    } catch (err) {
+      console.error('Erro ao definir volume:', err);
+      return { success: false, error: err };
+    }
   });
 
   // (Lógica de Janela - sem mudanças)

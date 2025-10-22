@@ -184,11 +184,28 @@
         <div id="tableContainer" class="sounds-table-container">
             </div>
 
-        <div class="audio-output-selector">
+        <!-- <div class="audio-output-selector">
             <label for="audioOutputSelect">🔊 Saída de Áudio:</label>
             <select id="audioOutputSelect" onchange="saveAudioDevice()">
                 <option value="default">Padrão do Sistema</option>
             </select>
+        </div> -->
+
+        <div class="global-settings-container">
+            <div class="audio-output-selector">
+                <label for="audioOutputSelect">🔊 Saída de Áudio:</label>
+                <select id="audioOutputSelect" onchange="saveGlobalSettings()">
+                    <option value="default">Padrão do Sistema</option>
+                </select>
+            </div>
+            
+            <div class="audio-output-selector" style="margin-top: -10px;">
+                <input type="checkbox" id="volumeBoostCheck" onchange="saveGlobalSettings()" style="width: 20px; height: 20px;">
+                <label for="volumeBoostCheck" style="flex: 1; cursor: pointer;">⚡ Ativar "Boost" de Volume (Sistema)</label>
+                
+                <input type="number" id="volumeBoostAmount" value="20" min="1" max="100" onchange="saveGlobalSettings()" style="width: 70px; padding: 10px;">
+                <label for="volumeBoostAmount" style="margin-right: 5px;">+%</label>
+            </div>
         </div>
 
         <div class="info">
@@ -349,17 +366,37 @@
         let capturedKeys = new Set();
         let stopAudioTimer = null;
         let currentView = 'grid';
+        let originalSystemVolume = null;
+        let isSystemVolumeBoosted = false;
+
+        // async function loadConfig() {
+        //     config = await ipcRenderer.invoke('load-config');
+
+        //     if (!config.settings) config.settings = { audioDevice: 'default' };
+        //     if (!config.sounds) config.sounds = {};
+
+        //     await loadAudioDevices();
+
+        //     const savedDevice = config.settings.audioDevice || 'default';
+        //     document.getElementById('audioOutputSelect').value = savedDevice;
+
+        //     renderSounds();
+        // }
 
         async function loadConfig() {
             config = await ipcRenderer.invoke('load-config');
 
+            // ... (Toda a sua lógica de migração e áudio... )
             if (!config.settings) config.settings = { audioDevice: 'default' };
             if (!config.sounds) config.sounds = {};
-
             await loadAudioDevices();
-
             const savedDevice = config.settings.audioDevice || 'default';
             document.getElementById('audioOutputSelect').value = savedDevice;
+
+            // --- MUDANÇA: Carrega as novas configurações ---
+            document.getElementById('volumeBoostCheck').checked = config.settings.volumeBoostEnabled || false;
+            document.getElementById('volumeBoostAmount').value = config.settings.volumeBoostAmount || 20;
+            // --- Fim da mudança ---
 
             renderSounds();
         }
@@ -416,10 +453,19 @@
             }
         }
 
-        async function saveAudioDevice() {
-            const selectedDeviceId = document.getElementById('audioOutputSelect').value;
-            config.settings.audioDevice = selectedDeviceId;
+        async function saveGlobalSettings() {
+            config.settings.audioDevice = document.getElementById('audioOutputSelect').value;
+            config.settings.volumeBoostEnabled = document.getElementById('volumeBoostCheck').checked;
+            config.settings.volumeBoostAmount = parseInt(document.getElementById('volumeBoostAmount').value) || 20;
+            
             await saveConfig();
+        }
+
+        async function saveAudioDevice() {
+            // const selectedDeviceId = document.getElementById('audioOutputSelect').value;
+            // config.settings.audioDevice = selectedDeviceId;
+            // await saveConfig();
+            await saveGlobalSettings(); // MUDANÇA: Apenas chama a função principal
             alert('Saída de áudio salva!');
         }
 
@@ -458,6 +504,8 @@
                 if (previewStopTimer) clearTimeout(previewStopTimer);
                 previewStopTimer = null;
                 button.innerHTML = "▶️ Prévia";
+
+                await restoreVolumeBoost();
                 return;
             }
 
@@ -479,6 +527,8 @@
                     stopAudioTimer = null;
                 }
             }
+
+            await restoreVolumeBoost();
             
             // 4. Pegue todas as configurações do modal
             const volume = parseFloat(document.getElementById('soundVolume').value);
@@ -488,6 +538,8 @@
             const endTime = parseFloat(document.getElementById('soundEndTime').value) || 0;
 
             try {
+                await applyVolumeBoost();
+
                 // 5. Crie e configure o áudio de preview
                 previewAudio = new Audio(selectedFilePath);
                 previewAudio.volume = volume;
@@ -513,7 +565,8 @@
                 // 8. Limpe quando o áudio terminar
                 previewAudio.addEventListener('ended', () => {
                     button.innerHTML = "▶️ Prévia";
-                    previewAudio = null; // Limpe o objeto
+                    previewAudio = null;
+                    restoreVolumeBoost();
                 });
                 
                 // 9. Lógica para 'endTime' (copiada de playSound)
@@ -542,8 +595,55 @@
                 alert('Erro ao reproduzir a prévia. Verifique o arquivo.');
                 if (previewAudio) previewAudio = null;
                 button.innerHTML = "▶️ Prévia";
+                restoreVolumeBoost();
             }
         }
+
+
+        /**
+         * Aumenta o volume do sistema se a opção estiver marcada.
+         */
+        async function applyVolumeBoost() {
+            const boostCheck = document.getElementById('volumeBoostCheck').checked;
+            
+            // Só executa se o boost estiver ligado E o volume não estiver já aumentado
+            if (boostCheck && !isSystemVolumeBoosted) {
+                try {
+                    const currentVolume = await ipcRenderer.invoke('get-system-volume');
+                    if (currentVolume === null) return; // Falha ao obter
+
+                    originalSystemVolume = currentVolume; // Salva o volume original
+                    
+                    const boostAmount = parseInt(document.getElementById('volumeBoostAmount').value) || 20;
+                    let newVolume = currentVolume + boostAmount;
+                    if (newVolume > 100) newVolume = 100; // Limita em 100%
+
+                    await ipcRenderer.invoke('set-system-volume', newVolume);
+                    isSystemVolumeBoosted = true; // Marca que o volume foi aumentado
+                } catch (err) {
+                    console.error('Falha ao aplicar boost de volume:', err);
+                }
+            }
+        }
+
+        /**
+         * Restaura o volume do sistema ao seu valor original.
+         */
+        async function restoreVolumeBoost() {
+            // Só executa se o volume estiver aumentado e tivermos um valor original
+            if (isSystemVolumeBoosted && originalSystemVolume !== null) {
+                try {
+                    await ipcRenderer.invoke('set-system-volume', originalSystemVolume);
+                    originalSystemVolume = null; // Limpa o valor
+                    isSystemVolumeBoosted = false; // Marca que o volume foi restaurado
+                } catch (err) {
+                    console.error('Falha ao restaurar volume:', err);
+                }
+            }
+        }
+
+
+
 
         // function renderSounds() {
         //     const container = document.getElementById('soundsContainer');
@@ -1112,27 +1212,42 @@
         // }
 
         async function playSound(name) {
-            if (!config.sounds[name]) return; 
-            
-            const data = config.sounds[name]; 
+            const data = config.sounds[name];
+            if (!data) return;
 
             // --- NOVO BLOCO DE CÓDIGO ---
             // Verifica se o som ATUAL é o MESMO que foi pedido
+            // if (currentAudio && currentPlayingSoundName === name && !currentAudio.paused) {
+            //     // É o mesmo som, e ele está tocando. Pare ele.
+            //     currentAudio.pause();
+            //     currentAudio.currentTime = 0; 
+            //     currentAudio.src = ''; // Limpa a fonte
+            //     currentAudio = null; // Descarta o áudio
+            //     currentPlayingSoundName = null; // Limpa o nome
+                
+            //     if (stopAudioTimer) {
+            //         clearTimeout(stopAudioTimer);
+            //         stopAudioTimer = null;
+            //     }
+            //     return; // Sai da função
+            // }
+            // --- FIM DO NOVO BLOCO ---
+
             if (currentAudio && currentPlayingSoundName === name && !currentAudio.paused) {
-                // É o mesmo som, e ele está tocando. Pare ele.
                 currentAudio.pause();
                 currentAudio.currentTime = 0; 
-                currentAudio.src = ''; // Limpa a fonte
-                currentAudio = null; // Descarta o áudio
-                currentPlayingSoundName = null; // Limpa o nome
+                currentAudio.src = ''; 
+                currentAudio = null; 
+                currentPlayingSoundName = null; 
                 
                 if (stopAudioTimer) {
                     clearTimeout(stopAudioTimer);
                     stopAudioTimer = null;
                 }
-                return; // Sai da função
+                
+                await restoreVolumeBoost(); // <<< RESTAURA O VOLUME
+                return; 
             }
-            // --- FIM DO NOVO BLOCO ---
 
             // Se chegou aqui, ou é um som diferente, ou nenhum som estava tocando.
             // Pare qualquer som que ESTIVESSE tocando (código que já existia)
@@ -1146,9 +1261,13 @@
                 clearTimeout(stopAudioTimer);
                 stopAudioTimer = null;
             }
+
+            await restoreVolumeBoost();
             
             // Toca o novo som
             try {
+                await applyVolumeBoost();
+
                 currentAudio = new Audio(data.path);
                 currentPlayingSoundName = name; // <<< NOVO: Guarda o nome do som atual
 
@@ -1182,7 +1301,8 @@
                     console.error('Erro ao reproduzir áudio:', err);
                     alert('Erro ao reproduzir o áudio. Verifique se o arquivo existe.');
                     currentAudio = null;
-                    currentPlayingSoundName = null; // <<< NOVO: Limpa em caso de erro
+                    currentPlayingSoundName = null;
+                    restoreVolumeBoost();
                 });
 
                 // Lógica do temporizador (endTime)
@@ -1193,7 +1313,8 @@
                         if (currentAudio && currentPlayingSoundName === name) { 
                             currentAudio.pause();
                             currentAudio.currentTime = startTime;
-                            currentPlayingSoundName = null; // <<< NOVO: Limpa quando o timer para
+                            currentPlayingSoundName = null;
+                            restoreVolumeBoost();
                         }
                     }, durationInMs);
                 }
@@ -1210,7 +1331,8 @@
                 console.error('Erro ao criar Audio:', error);
                 alert('Erro ao carregar o áudio.');
                 currentAudio = null;
-                currentPlayingSoundName = null; // <<< NOVO: Limpa em caso de erro
+                currentPlayingSoundName = null;
+                restoreVolumeBoost();
             }
         }
 

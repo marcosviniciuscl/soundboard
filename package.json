@@ -1,6 +1,6 @@
 {
     "name": "hahaha-app",
-    "version": "0.0.5",
+    "version": "0.0.2",
     "description": "Hahaha com atalhos personalizados",
     "main": "main.js",
     "scripts": {
@@ -21,7 +21,8 @@
     },
     "dependencies": {
         "electron-localshortcut": "^3.2.1",
-        "electron-updater": "^6.1.7"
+        "electron-updater": "^6.1.7",
+        "loudness": "^0.4.2"
     },
     "build": {
         "appId": "com.mvclima.hahaha",
