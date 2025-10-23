@@ -1,6 +1,6 @@
 {
-    "name": "hahaha-app",
-    "version": "0.0.3",
+    "name": "hahaha",
+    "version": "0.0.4",
     "description": "Hahaha com atalhos personalizados",
     "main": "main.js",
     "scripts": {
