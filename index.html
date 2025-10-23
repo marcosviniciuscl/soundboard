@@ -664,7 +664,13 @@
 
             // 1. Lógica do Estado Vazio
             if (soundNamesInOrder.length === 0) {
-                const emptyHtml = `... (seu HTML de estado vazio) ...`;
+                const emptyHtml = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎼</div>
+                        <h3>Nenhum som adicionado ainda</h3>
+                        <p>Clique em "Adicionar Áudio" para começar</p>
+                    </div>
+                `;
                 gridContainer.innerHTML = emptyHtml;
                 tableContainer.innerHTML = emptyHtml; // Mostra nas duas views
                 // if (sortableInstance) sortableInstance.destroy(); // Destrói o sortable
