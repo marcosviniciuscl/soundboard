@@ -25,7 +25,8 @@
     "dependencies": {
         "electron-localshortcut": "^3.2.1",
         "electron-updater": "^6.1.7",
-        "loudness": "^0.4.2"
+        "loudness": "^0.4.2",
+        "sortablejs": "^1.15.6"
     },
     "build": {
         "appId": "com.mvclima.hahaha",
@@ -34,7 +35,8 @@
             "main.js",
             "index.html",
             "icon.png",
-            "icon.ico"
+            "icon.ico",
+            "overlay.html"
         ],
         "publish": {
             "provider": "github"

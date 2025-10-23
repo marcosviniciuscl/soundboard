@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const loudness = require('loudness');
 
+
+
 // --- Trava de Instância Única ---
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -20,6 +22,7 @@ if (!gotTheLock) {
 
 const configPath = path.join(app.getPath('userData'), 'soundboard-config.json');
 let mainWindow;
+let overlayWindow = null;
 let appConfig = { settings: { audioDevice: 'default' }, sounds: {} };
 let tray = null;
 let isQuitting = false;
@@ -48,7 +51,7 @@ function loadSoundsConfig() {
     return appConfig;
 }
 function registerAllHotkeys(sounds) {
-    globalShortcut.unregisterAll();
+    // globalShortcut.unregisterAll();
     if (!sounds) return;
     Object.entries(sounds).forEach(([name, data]) => {
         if (data.hotkey) {
@@ -66,6 +69,95 @@ function registerAllHotkeys(sounds) {
 }
 // --- Fim das funções inalteradas ---
 
+// function createOverlayWindow() {
+//     if (overlayWindow) {
+//         overlayWindow.focus();
+//         return;
+//     }
+
+//     overlayWindow = new BrowserWindow({
+//         width: 450,         // Largura do círculo
+//         height: 450,        // Altura do círculo
+//         transparent: true,  // Fundo transparente
+//         frame: false,       // Sem bordas ou barra de título
+//         alwaysOnTop: true,  // Sempre por cima de tudo
+//         center: true,       // Centralizado na tela
+//         resizable: false,
+//         show: false,        // Começa invisível
+//         skipTaskbar: true,  // Não mostra na barra de tarefas
+//         webPreferences: {
+//             nodeIntegration: true,   // Necessário para o 'require' no overlay.html
+//             contextIsolation: false // Necessário para o 'require' no overlay.html
+//         }
+//     });
+
+//     overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+
+//     // Quando o overlay estiver pronto, pede a lista de sons para a janela principal
+//     overlayWindow.webContents.on('did-finish-load', () => {
+//         // Pede a lista de sons da janela principal
+//         if (mainWindow) {
+//             mainWindow.webContents.send('get-sound-list');
+//         }
+//     });
+
+//     // Se o usuário clicar fora do círculo (perder foco), ele fecha
+//     overlayWindow.on('blur', () => {
+//         if (overlayWindow) {
+//             overlayWindow.close();
+//         }
+//     });
+
+//     // Limpa a variável quando a janela for fechada
+//     overlayWindow.on('closed', () => {
+//         overlayWindow = null;
+//     });
+// }
+
+function createOverlayWindow() {
+    if (overlayWindow) {
+        overlayWindow.focus();
+        return;
+    }
+
+    const { width, height } = require('electron').screen.getPrimaryDisplay().bounds; // Pega a resolução da tela principal
+
+    overlayWindow = new BrowserWindow({
+        width: width,         // Largura total da tela
+        height: height,       // Altura total da tela
+        transparent: true,    // Fundo transparente
+        backgroundColor: '#00000000',
+        frame: false,         // Sem bordas ou barra de título
+        alwaysOnTop: true,    // Sempre por cima de tudo
+        center: true,         // Centralizado na tela
+        resizable: false,
+        show: false,          // Começa invisível
+        skipTaskbar: true,    // Não mostra na barra de tarefas
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+
+    overlayWindow.webContents.on('did-finish-load', () => {
+        if (mainWindow) {
+            mainWindow.webContents.send('get-sound-list');
+        }
+    });
+
+    overlayWindow.on('blur', () => {
+        if (overlayWindow) {
+            overlayWindow.close();
+        }
+    });
+
+    overlayWindow.on('closed', () => {
+        overlayWindow = null;
+    });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -77,7 +169,7 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png')
   });
 
-  mainWindow.removeMenu();
+  // mainWindow.removeMenu();
   loadSoundsConfig();
 
   // --- LÓGICA DE ATUALIZAÇÃO ---
@@ -107,15 +199,44 @@ function createWindow() {
 
   // (Lógica de IPC para config e arquivos - sem mudanças)
   ipcMain.handle('load-config', async () => appConfig);
-  ipcMain.handle('save-config', async (event, config) => {
-    try {
-      const data = JSON.stringify(config, null, 2);
-      fs.writeFileSync(configPath, data, 'utf-8');
-      appConfig = config;
-      registerAllHotkeys(appConfig.sounds);
-    } catch (err) {
-      console.error("Erro ao salvar configuração:", err);
-    }
+  // ipcMain.handle('save-config', async (event, config) => {
+  //   try {
+  //     const data = JSON.stringify(config, null, 2);
+  //     fs.writeFileSync(configPath, data, 'utf-8');
+  //     appConfig = config;
+  //     registerAllHotkeys(appConfig.sounds);
+  //   } catch (err) {
+  //     console.error("Erro ao salvar configuração:", err);
+  //   }
+  // });
+  // SUBSTITUA ESTE HANDLER
+  ipcMain.handle('save-config', async (event, newConfig) => { // Renomeado para newConfig
+      try {
+          // --- INÍCIO DA CORREÇÃO ---
+          // 1. Limpa os atalhos de áudio ANTIGOS
+          // Usamos a 'appConfig' global, que ainda tem a config antiga
+          if (appConfig && appConfig.sounds) {
+              Object.values(appConfig.sounds).forEach(data => {
+                  if (data.hotkey) {
+                      globalShortcut.unregister(data.hotkey);
+                  }
+              });
+          }
+
+          // 2. Salva o novo arquivo
+          const data = JSON.stringify(newConfig, null, 2);
+          fs.writeFileSync(configPath, data, 'utf-8');
+          
+          // 3. Atualiza a config global do main.js
+          appConfig = newConfig;
+
+          // 4. Registra os atalhos NOVOS (a função agora só registra)
+          registerAllHotkeys(appConfig.sounds);
+          // --- FIM DA CORREÇÃO ---
+
+      } catch (err) {
+          console.error("Erro ao salvar configuração:", err);
+      }
   });
   ipcMain.handle('select-audio-file', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -146,6 +267,34 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('sound-list', (event, soundList) => {
+      // 2. O main.js envia a lista para o overlay
+      if (overlayWindow) {
+          overlayWindow.show(); // Mostra o círculo agora que tem os dados
+          overlayWindow.focus();
+          overlayWindow.webContents.send('load-sounds', soundList);
+      }
+  });
+
+  // 3. O overlay (overlay.html) pede para tocar um som
+  ipcMain.on('play-sound-from-overlay', (event, soundName) => {
+      // 4. O main.js manda a janela principal (que tem o <audio>) tocar
+      if (mainWindow) {
+          mainWindow.webContents.send('play-sound', soundName);
+      }
+      // Fecha o overlay após o comando
+      if (overlayWindow) {
+          overlayWindow.close();
+      }
+  });
+
+  // 5. O overlay pede para fechar (ex: pressionou Escape)
+  ipcMain.on('close-overlay', () => {
+      if (overlayWindow) {
+          overlayWindow.close();
+      }
+  });
+
   // (Lógica de Janela - sem mudanças)
   mainWindow.on('minimize', (event) => { event.preventDefault(); mainWindow.hide(); });
   mainWindow.on('close', (event) => { if (!isQuitting) { event.preventDefault(); mainWindow.hide(); }});
@@ -157,6 +306,23 @@ function createWindow() {
 app.whenReady().then(() => {
     createWindow();
     registerAllHotkeys(appConfig.sounds);
+
+    try {
+        const ret = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+            if (overlayWindow) {
+                overlayWindow.close();
+            } else {
+                createOverlayWindow();
+            }
+        });
+
+        if (!ret) {
+            console.log('Falha ao registrar o atalho global');
+        }
+    } catch (err) {
+        console.error('Erro ao registrar atalho global:', err);
+    }
+
     app.on('before-quit', () => { isQuitting = true; });
 
     const iconPath = path.join(__dirname, 'icon.png');
