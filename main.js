@@ -3,7 +3,14 @@ const { autoUpdater } = require('electron-updater'); // Importa o autoUpdater
 const path = require('path');
 const fs = require('fs');
 const loudness = require('loudness');
+const AdmZip = require('adm-zip');
+const os = require('os');
+const dgram = require('dgram'); 
+const udpPort = 41234; 
 
+
+const multicastAddress = '239.255.0.1'; // Nosso "grupo" de rádio privado
+let udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
 
 // --- Trava de Instância Única ---
@@ -42,12 +49,23 @@ function loadSoundsConfig() {
             } else {
                 appConfig = config;
             }
+
+            if (!appConfig.settings) appConfig.settings = { audioDevice: 'default' };
+            if (!appConfig.settings.overlayHotkey) {
+                appConfig.settings.overlayHotkey = 'CommandOrControl+Shift+Space';
+            }
             return appConfig;
         }
     } catch (err) {
         console.error("Erro ao carregar configuração:", err);
     }
-    appConfig = { settings: { audioDevice: 'default' }, sounds: {} };
+    appConfig = { 
+        settings: { 
+            audioDevice: 'default', 
+            overlayHotkey: 'CommandOrControl+Shift+Space' 
+        }, 
+        sounds: {} 
+    };
     return appConfig;
 }
 function registerAllHotkeys(sounds) {
@@ -158,6 +176,36 @@ function createOverlayWindow() {
     });
 }
 
+async function askAndCheckForUpdates() {
+    // Só verifica se o app estiver "empacotado" (instalado)
+    if (!app.isPackaged) {
+      console.log('Verificação de atualização desativada em modo de desenvolvimento.');
+      return;
+    }
+    
+    try {
+      // Pergunta ao usuário primeiro, usando um diálogo nativo
+      const { response } = await dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Verificar Atualizações',
+          message: 'Deseja verificar se há novas atualizações para o Hahaha?',
+          buttons: ['Sim, verificar agora', 'Não, depois'],
+          defaultId: 0, // Botão "Sim" é o padrão
+          cancelId: 1   // Botão "Não"
+      });
+
+      if (response === 0) { // 0 é o índice do botão "Sim"
+          // O usuário aceitou. Agora sim, verificamos.
+          // Isso vai disparar os eventos 'update-available' etc.
+          autoUpdater.checkForUpdatesAndNotify();
+      } else {
+          console.log('Verificação de atualização pulada pelo usuário.');
+      }
+    } catch (err) {
+        console.error('Erro no diálogo de atualização:', err);
+    }
+  }
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -177,28 +225,75 @@ function createWindow() {
 
   // --- LÓGICA DE ATUALIZAÇÃO ---
   // Assim que a janela estiver pronta, verifica por atualizações.
+//   mainWindow.webContents.on('did-finish-load', () => {
+//     // Para ambientes de desenvolvimento, desativa a busca para evitar erros.
+//     if (!app.isPackaged) {
+//       console.log('Verificação de atualização desativada em modo de desenvolvimento.');
+//       return;
+//     }
+//     autoUpdater.checkForUpdatesAndNotify();
+//   });
+//   mainWindow.webContents.on('did-finish-load', () => {
+//     askAndCheckForUpdates();
+//   });
+
+//   autoUpdater.on('update-available', () => {
+//     mainWindow.webContents.send('update-available');
+//   });
+
+//   autoUpdater.on('update-downloaded', () => {
+//     mainWindow.webContents.send('update-downloaded');
+//   });
+
+//   // O renderer vai chamar este evento para reiniciar o app.
+//   ipcMain.on('restart-app', () => {
+//     autoUpdater.quitAndInstall();
+//   });
+  // --- FIM DA LÓGICA DE ATUALIZAÇÃO ---
+
+
   mainWindow.webContents.on('did-finish-load', () => {
-    // Para ambientes de desenvolvimento, desativa a busca para evitar erros.
     if (!app.isPackaged) {
       console.log('Verificação de atualização desativada em modo de desenvolvimento.');
       return;
     }
-    autoUpdater.checkForUpdatesAndNotify();
+    // Isso verifica E baixa automaticamente.
+    autoUpdater.checkForUpdatesAndNotify(); 
   });
 
+  // Este evento ainda é útil para mostrar "Baixando atualização..." no seu app
   autoUpdater.on('update-available', () => {
     mainWindow.webContents.send('update-available');
   });
 
-  autoUpdater.on('update-downloaded', () => {
-    mainWindow.webContents.send('update-downloaded');
+  // --- MUDANÇA PRINCIPAL ESTÁ AQUI ---
+  // Quando a atualização terminar de baixar...
+  autoUpdater.on('update-downloaded', (info) => {
+    
+    // ...em vez de notificar o index.html, mostramos um pop-up nativo.
+    dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Atualização Pronta!',
+        message: 'Uma nova versão do Hahaha foi baixada.',
+        detail: 'Deseja reiniciar o aplicativo e instalar a atualização agora?',
+        buttons: ['Reiniciar Agora', 'Depois'],
+        defaultId: 0, // "Reiniciar Agora"
+        cancelId: 1   // "Depois"
+    }).then(({ response }) => {
+        if (response === 0) { // 0 é o índice de "Reiniciar Agora"
+            // O usuário aceitou, então reiniciamos e instalamos.
+            autoUpdater.quitAndInstall();
+        }
+    });
+    // Não enviamos mais o 'update-downloaded' para o renderer,
+    // pois este diálogo nativo o substitui.
   });
 
-  // O renderer vai chamar este evento para reiniciar o app.
+  // Este handler ainda é útil caso você queira adicionar um botão
+  // "Verificar Atualizações" manualmente no futuro.
   ipcMain.on('restart-app', () => {
     autoUpdater.quitAndInstall();
   });
-  // --- FIM DA LÓGICA DE ATUALIZAÇÃO ---
 
   // (Lógica de IPC para config e arquivos - sem mudanças)
   ipcMain.handle('load-config', async () => appConfig);
@@ -270,6 +365,178 @@ function createWindow() {
     }
   });
 
+  ipcMain.handle('export-profile', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Exportar Perfil do Soundboard',
+      defaultPath: `soundboard-backup-${Date.now()}.zip`,
+      filters: [{ name: 'Arquivos Zip', extensions: ['zip'] }]
+    });
+
+    if (canceled || !filePath) {
+      return { success: false, message: 'Exportação cancelada.' };
+    }
+
+    try {
+      const zip = new AdmZip();
+      const exportConfig = JSON.parse(JSON.stringify(appConfig)); // Cópia profunda
+      const soundFilesDir = path.join(app.getPath('userData'), 'imported_sounds'); // Pasta para áudios
+
+      // Garante que a pasta de importados exista (para futuros imports)
+      if (!fs.existsSync(soundFilesDir)) {
+        fs.mkdirSync(soundFilesDir, { recursive: true });
+      }
+
+      // 1. Itera sobre os sons, copia os áudios e relativiza os caminhos
+      for (const soundName in exportConfig.sounds) {
+        const soundData = exportConfig.sounds[soundName];
+        const originalPath = soundData.path;
+
+        if (fs.existsSync(originalPath)) {
+          const filename = path.basename(originalPath);
+          const newRelativePath = `sounds/${filename}`;
+          
+          // Adiciona o arquivo de áudio ao zip
+          zip.addLocalFile(originalPath, 'sounds/');
+          
+          // ATUALIZA o caminho no config que será salvo no zip
+          soundData.path = newRelativePath; 
+        } else {
+          // Se o áudio não for encontrado, marca como "perdido"
+          soundData.path = null; 
+        }
+      }
+
+      // 2. Adiciona o arquivo config.json (com caminhos relativos) ao zip
+      zip.addFile('config.json', Buffer.from(JSON.stringify(exportConfig, null, 2)), 'Configuração do Soundboard');
+
+      // 3. Salva o arquivo .zip
+      zip.writeZip(filePath);
+
+      return { success: true, message: 'Perfil exportado com sucesso!' };
+    } catch (err) {
+      console.error('Erro ao exportar:', err);
+      return { success: false, message: `Erro ao exportar: ${err.message}` };
+    }
+  });
+
+  ipcMain.handle('import-profile', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Importar Perfil do Soundboard',
+      filters: [{ name: 'Arquivos Zip', extensions: ['zip'] }],
+      properties: ['openFile']
+    });
+
+    if (canceled || !filePaths.length) {
+      return { success: false, message: 'Importação cancelada.' };
+    }
+
+    const zipPath = filePaths[0];
+    const soundsDir = path.join(app.getPath('userData'), 'imported_sounds'); // Onde os áudios serão extraídos
+
+    try {
+      const zip = new AdmZip(zipPath);
+      
+      // 1. Verifica se o config.json existe no zip
+      const configEntry = zip.getEntry('config.json');
+      if (!configEntry) {
+        throw new Error('Arquivo .zip inválido: config.json não encontrado.');
+      }
+
+      // Pede confirmação ao usuário, pois vai sobrescrever TUDO
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Confirmar Importação',
+        message: 'Importar um perfil irá sobrescrever todas as suas configurações, sons e atalhos atuais. Deseja continuar?',
+        buttons: ['Cancelar', 'Importar'],
+        defaultId: 0,
+        cancelId: 0
+      });
+
+      if (response !== 1) { // Se não for "Importar"
+        return { success: false, message: 'Importação cancelada pelo usuário.' };
+      }
+
+      // 2. Extrai os áudios para a pasta 'imported_sounds'
+      if (!fs.existsSync(soundsDir)) {
+        fs.mkdirSync(soundsDir, { recursive: true });
+      }
+      zip.extractAllTo(soundsDir, /*overwrite*/ true); // Extrai tudo (incluindo o config.json, que ignoramos)
+
+      // 3. Lê o config.json extraído
+      const importConfigPath = path.join(soundsDir, 'config.json');
+      const configText = fs.readFileSync(importConfigPath, 'utf-8');
+      const importConfig = JSON.parse(configText);
+
+      // 4. "Absolutiza" os caminhos (converte 'sounds/meme.mp3' para 'C:/.../imported_sounds/sounds/meme.mp3')
+      for (const soundName in importConfig.sounds) {
+        const soundData = importConfig.sounds[soundName];
+        if (soundData.path) { // Se não for null
+          const filename = path.basename(soundData.path);
+          const newAbsolutePath = path.join(soundsDir, 'sounds', filename); // O zip extrai mantendo a pasta 'sounds'
+          
+          if (fs.existsSync(newAbsolutePath)) {
+            soundData.path = newAbsolutePath;
+          } else {
+            soundData.path = null; // Marcado como perdido se não foi extraído
+          }
+        }
+      }
+
+      // 5. Salva a nova configuração como a principal
+      fs.writeFileSync(configPath, JSON.stringify(importConfig, null, 2), 'utf-8');
+      appConfig = importConfig; // Atualiza a config em memória
+
+      // 6. Recarrega a aplicação inteira para que tudo seja atualizado
+      mainWindow.reload();
+
+      return { success: true }; // O 'reload' vai tratar de tudo
+
+    } catch (err) {
+      console.error('Erro ao importar:', err);
+      return { success: false, message: `Erro ao importar: ${err.message}` };
+    }
+  });
+
+  ipcMain.handle('update-overlay-hotkey', async (event, newHotkey) => {
+    const currentHotkey = appConfig.settings.overlayHotkey;
+    
+    // 1. Desregistra o atalho antigo
+    if (currentHotkey) {
+        globalShortcut.unregister(currentHotkey);
+    }
+
+    try {
+        // 2. Tenta registrar o novo
+        const ret = globalShortcut.register(newHotkey, () => {
+            if (overlayWindow) {
+                overlayWindow.close();
+            } else {
+                createOverlayWindow();
+            }
+        });
+
+        if (!ret) { // Falha se o atalho for inválido ou já estiver em uso
+             throw new Error('Falha ao registrar, atalho inválido ou em uso.');
+        }
+
+        // 3. Sucesso: Atualiza a config e salva no arquivo
+        appConfig.settings.overlayHotkey = newHotkey;
+        fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2), 'utf-8');
+        return { success: true };
+
+    } catch (err) {
+        // 4. Falha: Registra o atalho antigo de volta (Rollback)
+        console.error('Falha ao registrar novo atalho, revertendo...', err);
+        if (currentHotkey) {
+            globalShortcut.register(currentHotkey, () => {
+                if (overlayWindow) overlayWindow.close();
+                else createOverlayWindow();
+            });
+        }
+        return { success: false, message: 'Falha ao registrar atalho. Pode ser inválido ou estar em uso por outro aplicativo.' };
+    }
+  });
+
   ipcMain.on('sound-list', (event, soundList) => {
       // 2. O main.js envia a lista para o overlay
       if (overlayWindow) {
@@ -298,6 +565,31 @@ function createWindow() {
       }
   });
 
+
+//   ipcMain.on('broadcast-network-command', (event, command) => {
+//     const message = Buffer.from(JSON.stringify({
+//       appId: 'hahaha-soundboard', // Identificador para ignorar outros apps
+//       command: command // 'MUTE' ou 'UNMUTE'
+//     }));
+    
+//     udpSocket.send(message, udpPort, broadcastAddress, (err) => {
+//       if (err) console.error('Erro ao enviar broadcast:', err);
+//     });
+//   });
+
+  ipcMain.on('broadcast-network-command', (event, command) => {
+    const user = os.hostname() || 'Usuário Desconhecido';
+    const message = Buffer.from(JSON.stringify({
+      appId: 'hahaha-soundboard',
+      command: command, 
+      user: user
+    }));
+    
+    // --- MUDANÇA: Envia para o endereço MULTICAST ---
+    udpSocket.send(message, udpPort, multicastAddress, (err) => {
+      if (err) console.error('Erro ao enviar multicast:', err);
+    });
+  });
   // (Lógica de Janela - sem mudanças)
   mainWindow.on('minimize', (event) => { event.preventDefault(); mainWindow.hide(); });
   mainWindow.on('close', (event) => { if (!isQuitting) { event.preventDefault(); mainWindow.hide(); }});
@@ -311,7 +603,8 @@ app.whenReady().then(() => {
     registerAllHotkeys(appConfig.sounds);
 
     try {
-        const ret = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+        const overlayHotkey = appConfig.settings.overlayHotkey || 'CommandOrControl+Shift+Space';
+        const ret = globalShortcut.register(overlayHotkey, () => {
             if (overlayWindow) {
                 overlayWindow.close();
             } else {
@@ -325,6 +618,56 @@ app.whenReady().then(() => {
     } catch (err) {
         console.error('Erro ao registrar atalho global:', err);
     }
+
+    // udpSocket.on('error', (err) => {
+    //   console.error(`Erro no socket UDP:\n${err.stack}`);
+    //   udpSocket.close();
+    // });
+
+    // udpSocket.on('message', (msg, rinfo) => {
+    //   // Recebeu uma mensagem de outro app na rede
+    //   try {
+    //     const message = JSON.parse(msg.toString());
+    //     if (message.appId === 'hahaha-soundboard' && mainWindow) {
+    //       // Envia o comando para o 'index.html'
+    //       mainWindow.webContents.send('network-status', message);
+    //     }
+    //   } catch (e) {
+    //     // Ignora mensagens malformadas
+    //   }
+    // });
+
+    // udpSocket.bind(udpPort, () => {
+    //   udpSocket.setBroadcast(true);
+    //   console.log(`Socket UDP ouvindo na porta ${udpPort}`);
+    // });
+
+    udpSocket.on('error', (err) => {
+      console.error(`Erro no socket UDP:\n${err.stack}`);
+      udpSocket.close();
+    });
+
+    udpSocket.on('message', (msg, rinfo) => {
+      try {
+        const message = JSON.parse(msg.toString());
+        if (message.appId === 'hahaha-soundboard' && mainWindow) {
+          mainWindow.webContents.send('network-status', message);
+        }
+      } catch (e) {
+        // Ignora mensagens malformadas
+      }
+    });
+
+    udpSocket.bind(udpPort, () => {
+        // Em vez de setBroadcast, vamos nos juntar ao grupo multicast
+        try {
+            udpSocket.setMulticastTTL(128); // Define o "Time To Live" dos pacotes
+            udpSocket.addMembership(multicastAddress, '0.0.0.0'); // Entra no grupo em todas as interfaces
+            console.log(`Socket UDP ouvindo na porta ${udpPort} e inscrito no grupo ${multicastAddress}`);
+        } catch (err) {
+            console.error('Erro ao ingressar no grupo multicast:', err);
+        }
+    });
 
     app.on('before-quit', () => { isQuitting = true; });
 

@@ -204,6 +204,23 @@
             <p class="subtitle">Atalhos de áudio personalizados</p>
         </header>
 
+        <!-- <div class="controls">
+            <button class="btn-add" onclick="openAddModal()">➕ Adicionar Áudio</button>
+            <button class="btn-edit" onclick="openEditModal()">✏️ Editar Selecionado</button>
+            <button class="btn-remove" onclick="removeSound()">🗑️ Remover Selecionado</button>
+            <button class="btn-test" onclick="testSelected()">▶️ Testar Som</button>
+            <button id="viewToggleButton" class="btn-test" onclick="toggleView()" style="min-width: 60px; justify-content: center; font-size: 1.5em; padding: 10px;">
+                ☰
+            </button>
+            <button class="btn-test" ...>🌐 Buscar Online</button> <button class="btn-edit" onclick="importProfile()" style="min-width: 130px;">📥 Importar</button>
+            <button class="btn-edit" onclick="exportProfile()" style="min-width: 130px;">📤 Exportar</button>
+            
+            <div class="form-group-check" style="margin-bottom: 0; margin-left: auto; padding: 10px; background: rgba(244, 51, 51, 0.1); border-radius: 8px;">
+                <input type="checkbox" id="networkMuteCheck" onchange="toggleNetworkMute(this)">
+                <label for="networkMuteCheck" style="color: #f44336; font-weight: bold;">🤫 Não Incomodar (Rede)</label>
+            </div>
+        </div> -->
+
         <div class="controls">
             <button class="btn-add" onclick="openAddModal()">➕ Adicionar Áudio</button>
             <button class="btn-edit" onclick="openEditModal()">✏️ Editar Selecionado</button>
@@ -212,6 +229,10 @@
             <button id="viewToggleButton" class="btn-test" onclick="toggleView()" style="min-width: 60px; justify-content: center; font-size: 1.5em; padding: 10px;">
                 ☰
             </button>
+        </div>
+
+        <div id="networkMuteBanner" style="display: none; padding: 15px; background: #c0392b; color: white; font-weight: bold; text-align: center; border-radius: 8px; margin-bottom: 20px;">
+            🤫 O Mudo da Rede está ATIVADO. Nenhum som será tocado.
         </div>
 
         <div id="soundsContainer" class="sounds-grid">
@@ -242,8 +263,23 @@
             </div>
         </div>
 
+        
         <div class="info">
             💡 Duplo clique para testar • Atalhos funcionam mesmo com a janela minimizada
+        </div>
+
+        <div class="global-controls" style="margin-right: auto; display: flex; align-items: center; gap: 15px; margin-top: 10px;">    
+            <button class="btn-test" onclick="importProfile()" title="Importar Perfil (.zip)" style="padding: 10px 14px; font-size: 1.2em;">
+                📥
+            </button>
+            <button class="btn-test" onclick="exportProfile()" title="Exportar Perfil (.zip)" style="padding: 10px 14px; font-size: 1.2em;">
+                📤
+            </button>
+            
+            <div class="form-group-check" style="margin-bottom: 0; padding: 10px; background: rgba(244, 51, 51, 0.1); border-radius: 8px;">
+                <input type="checkbox" id="networkMuteCheck" onchange="toggleNetworkMute(this)">
+                <label for="networkMuteCheck" style="color: #f44336; font-weight: bold;">🤫 Não Incomodar</label>
+            </div>
         </div>
     </div>
 
@@ -338,6 +374,7 @@
         let originalSystemVolume = null;
         let isSystemVolumeBoosted = false;
         let sortableInstance = null;
+        let isNetworkMuted = false;
 
 
         async function loadConfig() {
@@ -468,6 +505,11 @@
         }
 
         async function previewSound(event) {
+            if (isNetworkMuted) {
+                console.log('Sons silenciados pela rede.');
+                return;
+            }
+
             event.preventDefault(); // Impede qualquer comportamento padrão do botão
             const button = event.target.closest('button'); 
 
@@ -979,6 +1021,11 @@
         
 
         async function playSound(name) {
+            if (isNetworkMuted) {
+                console.log('Sons silenciados pela rede.');
+                return;
+            }
+
             const data = config.sounds[name];
             if (!data) return;
 
@@ -1118,6 +1165,56 @@
                 restoreVolumeBoost();
             }
         }
+
+        async function exportProfile() {
+            const status = await ipcRenderer.invoke('export-profile');
+            alert(status.message); // Informa o usuário do sucesso ou falha
+        }
+
+        async function importProfile() {
+            const status = await ipcRenderer.invoke('import-profile');
+            if (status.message) {
+                alert(status.message); // Informa se foi cancelado ou falhou
+            }
+            // Se for sucesso, o app vai recarregar sozinho
+        }
+
+
+        // --- NOVAS Funções do Mute de Rede ---
+        // function toggleNetworkMute(checkbox) {
+        //     const command = checkbox.checked ? 'MUTE' : 'UNMUTE';
+        //     isNetworkMuted = checkbox.checked; // Atualiza nosso estado local
+        //     ipcRenderer.send('broadcast-network-command', command); // Envia para a rede
+        // }
+
+        // ipcRenderer.on('network-status', (event, message) => {
+        //     // Recebeu um comando da rede (de outro usuário ou de nós mesmos)
+        //     if (message.command === 'MUTE') {
+        //         isNetworkMuted = true;
+        //         document.getElementById('networkMuteCheck').checked = true;
+        //     } else if (message.command === 'UNMUTE') {
+        //         isNetworkMuted = false;
+        //         document.getElementById('networkMuteCheck').checked = false;
+        //     }
+        // });
+
+        function toggleNetworkMute(checkbox) {
+            const command = checkbox.checked ? 'MUTE' : 'UNMUTE';
+            setNetworkMuteState(checkbox.checked); // Atualiza a UI
+            ipcRenderer.send('broadcast-network-command', command); // Envia para a rede
+        }
+
+        /**
+         * MUDANÇA: Simplificado para usar o helper
+         */
+        ipcRenderer.on('network-status', (event, message) => {
+            // Recebeu um comando da rede
+            if (message.command === 'MUTE') {
+                setNetworkMuteState(true);
+            } else if (message.command === 'UNMUTE') {
+                setNetworkMuteState(false);
+            }
+        });
 
         ipcRenderer.on('get-sound-list', () => {
             // const soundNames = Object.keys(config.sounds);
@@ -1275,6 +1372,45 @@
 
             } catch (e) {
                 return 'Data inválida';
+            }
+        }
+
+        function setNetworkMuteState(isMuted) {
+            const banner = document.getElementById('networkMuteBanner');
+            const checkbox = document.getElementById('networkMuteCheck');
+            
+            isNetworkMuted = isMuted; // Atualiza a variável global
+            checkbox.checked = isMuted; // Sincroniza o checkbox
+            
+            if (isMuted) {
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        async function saveOverlayHotkey(newHotkey) {
+            if (!newHotkey) {
+                alert('O atalho não pode ser vazio.');
+                return;
+            }
+
+            try {
+                // Chama o handler que criamos no main.js
+                const result = await ipcRenderer.invoke('update-overlay-hotkey', newHotkey);
+                
+                if (result.success) {
+                    // Atualiza nossa cópia local da config
+                    config.settings.overlayHotkey = newHotkey;
+                    alert('Atalho do overlay atualizado com sucesso!');
+                } else {
+                    alert('Erro: ' + result.message);
+                    // (No futuro, você faria seu input.value = config.settings.overlayHotkey
+                    // para reverter a mudança na tela)
+                }
+            } catch (err) {
+                console.error('Erro ao atualizar atalho:', err);
+                alert('Erro de comunicação ao atualizar o atalho.');
             }
         }
 
