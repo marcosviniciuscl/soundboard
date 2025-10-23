@@ -169,10 +169,10 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png')
   });
 
-  if (!app.isPackaged) {
+  if (app.isPackaged) {
     mainWindow.removeMenu();
   }
-  
+
   loadSoundsConfig();
 
   // --- LÓGICA DE ATUALIZAÇÃO ---
