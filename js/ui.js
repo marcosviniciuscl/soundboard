@@ -1,6 +1,6 @@
 // js/ui.js (Continued)
 import { basename, formatLastPlayed } from './utils.js';
-import * as state from '../renderer.js'; // Assuming state is exported from renderer for now
+import * as state from '../renderer_bk.js'; // Assuming state is exported from renderer for now
 import { setupHotkeyCapture, clearHotkey, removeHotkeyCaptureListener } from './hotkey.js';
 import { previewSound, loadAudioDuration } from './audio.js'; // Make sure loadAudioDuration is exported
 
