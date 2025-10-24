@@ -37,7 +37,10 @@
             "index.html",
             "icon.png",
             "icon.ico",
-            "overlay.html"
+            "*.html",
+            "*.js",
+            "*.css",
+            "js/**"
         ],
         "publish": {
             "provider": "github"

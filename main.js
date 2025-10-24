@@ -213,15 +213,15 @@ function createWindow() {
     title: 'Soundboard - Atalhos de Áudio',
     show: false,
     webPreferences: {
-      nodeIntegration: false,
+      nodeIntegration: true,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, './preload.js'),
       sandbox: false
     },
-    icon: path.join(__dirname, 'icon.png')
+    icon: path.join(__dirname, './icon.png')
   });
 
-  const iconPath = path.join(__dirname, 'icon.png');
+  const iconPath = path.join(__dirname, './icon.png');
   if (fs.existsSync(iconPath)) {
     mainWindow.setIcon(iconPath);
   } else {
