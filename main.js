@@ -210,12 +210,23 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 800,
+    title: 'Soundboard - Atalhos de Áudio',
+    show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false
     },
     icon: path.join(__dirname, 'icon.png')
   });
+
+  const iconPath = path.join(__dirname, 'icon.png');
+  if (fs.existsSync(iconPath)) {
+    mainWindow.setIcon(iconPath);
+  } else {
+    console.error(`Ícone da janela principal não encontrado: ${iconPath}`);
+  }
 
   if (app.isPackaged) {
     mainWindow.removeMenu();
@@ -345,6 +356,62 @@ function createWindow() {
     return !canceled && filePaths.length > 0 ? filePaths[0] : null;
   });
 
+  // --- ADICIONADO ---
+  // Handler para COPIAR um arquivo de áudio para a pasta de dados do app
+  // Usamos 'imported_sounds/sounds/' para manter a consistência com sua lógica de Import/Export
+  ipcMain.handle('copy-audio-file', (event, originalFilePath) => {
+    try {
+        const soundsPath = path.join(app.getPath('userData'), 'imported_sounds', 'sounds');
+        
+        // 1. Garante que o diretório exista
+        fs.mkdirSync(soundsPath, { recursive: true });
+
+        // 2. Cria um nome de arquivo único
+        const uniqueName = `${Date.now()}-${path.basename(originalFilePath)}`;
+        const destPath = path.join(soundsPath, uniqueName);
+
+        // 3. Copia o arquivo
+        fs.copyFileSync(originalFilePath, destPath);
+
+        // 4. Retorna o NOVO caminho absoluto
+        return { success: true, path: destPath };
+    } catch (err) {
+        console.error('Falha ao copiar arquivo:', err);
+        return { success: false, error: err.message };
+    }
+  });
+
+  // Handler para DELETAR um arquivo de áudio da pasta de dados do app
+  ipcMain.handle('delete-audio-file', (event, filePathToDelete) => {
+    try {
+        const soundsPath = path.join(app.getPath('userData'), 'imported_sounds', 'sounds');
+        
+        // --- Verificação de Segurança ---
+        // Garante que só estamos deletando arquivos DENTRO da nossa pasta
+        const normalizedSoundsDir = path.normalize(soundsPath);
+        const normalizedFilePath = path.normalize(filePathToDelete);
+
+        if (!normalizedFilePath.startsWith(normalizedSoundsDir)) {
+            console.warn(`Tentativa de exclusão de arquivo fora do diretório: ${filePathToDelete}`);
+            return { success: false, error: 'Caminho inválido' };
+        }
+        // --- Fim da Verificação ---
+
+        if (fs.existsSync(normalizedFilePath)) {
+            fs.unlinkSync(normalizedFilePath);
+            return { success: true };
+        } else {
+            console.warn(`Arquivo não encontrado para exclusão: ${filePathToDelete}`);
+            return { success: true, message: 'Arquivo não encontrado' };
+        }
+    } catch (err) {
+        console.error('Falha ao deletar arquivo:', err);
+        return { success: false, error: err.message };
+    }
+  });
+  // --- FIM DA ADIÇÃO ---
+
+
   ipcMain.handle('get-system-volume', async () => {
     try {
       const volume = await loudness.getVolume();
@@ -379,9 +446,11 @@ function createWindow() {
     try {
       const zip = new AdmZip();
       const exportConfig = JSON.parse(JSON.stringify(appConfig)); // Cópia profunda
-      const soundFilesDir = path.join(app.getPath('userData'), 'imported_sounds'); // Pasta para áudios
+      
+      // NOTA: Esta variável não estava sendo usada, mas a lógica de 'imported_sounds' está correta
+      const soundFilesDir = path.join(app.getPath('userData'), 'imported_sounds'); 
 
-      // Garante que a pasta de importados exista (para futuros imports)
+      // Garante que a pasta de importados exista
       if (!fs.existsSync(soundFilesDir)) {
         fs.mkdirSync(soundFilesDir, { recursive: true });
       }
@@ -389,13 +458,13 @@ function createWindow() {
       // 1. Itera sobre os sons, copia os áudios e relativiza os caminhos
       for (const soundName in exportConfig.sounds) {
         const soundData = exportConfig.sounds[soundName];
-        const originalPath = soundData.path;
+        const originalPath = soundData.path; // Este agora será um caminho absoluto para '.../imported_sounds/sounds/...'
 
-        if (fs.existsSync(originalPath)) {
+        if (originalPath && fs.existsSync(originalPath)) {
           const filename = path.basename(originalPath);
-          const newRelativePath = `sounds/${filename}`;
+          const newRelativePath = `sounds/${filename}`; // O caminho relativo DENTRO do zip
           
-          // Adiciona o arquivo de áudio ao zip
+          // Adiciona o arquivo de áudio ao zip NA PASTA 'sounds/'
           zip.addLocalFile(originalPath, 'sounds/');
           
           // ATUALIZA o caminho no config que será salvo no zip
@@ -460,7 +529,7 @@ function createWindow() {
       if (!fs.existsSync(soundsDir)) {
         fs.mkdirSync(soundsDir, { recursive: true });
       }
-      zip.extractAllTo(soundsDir, /*overwrite*/ true); // Extrai tudo (incluindo o config.json, que ignoramos)
+      zip.extractAllTo(soundsDir, /*overwrite*/ true); // Extrai tudo (incluindo o config.json e a pasta 'sounds/')
 
       // 3. Lê o config.json extraído
       const importConfigPath = path.join(soundsDir, 'config.json');
@@ -595,6 +664,10 @@ function createWindow() {
   mainWindow.on('close', (event) => { if (!isQuitting) { event.preventDefault(); mainWindow.hide(); }});
 
   mainWindow.loadFile('index.html');
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
 }
 
 // (Restante do arquivo - sem mudanças)
@@ -690,221 +763,3 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-
-
-
-// const { app, BrowserWindow, ipcMain, dialog, globalShortcut, Tray, Menu } = require('electron'); 
-// const path = require('path');
-// const fs = require('fs');
-
-// // --- (INÍCIO) CORREÇÃO 2: Trava de Instância Única ---
-// // Isso deve ser feito bem no início.
-// const gotTheLock = app.requestSingleInstanceLock();
-
-// if (!gotTheLock) {
-//   // Se não conseguirmos a trava, significa que o app já está rodando.
-//   // Encerramos esta segunda instância imediatamente.
-//   app.quit();
-// } else {
-//   // Esta é a primeira instância.
-//   app.on('second-instance', (event, commandLine, workingDirectory) => {
-//     // Se alguém tentar rodar uma segunda instância, esta função será chamada.
-//     // Nós devemos focar a nossa janela.
-//     if (mainWindow) {
-//       if (mainWindow.isMinimized()) mainWindow.restore();
-//       if (!mainWindow.isVisible()) mainWindow.show(); // Mostra se estiver oculto no tray
-//       mainWindow.focus();
-//     }
-//   });
-// }
-// // --- (FIM) CORREÇÃO 2 ---
-
-
-// const configPath = path.join(app.getPath('userData'), 'soundboard-config.json');
-
-// let mainWindow;
-// let appConfig = { settings: { audioDevice: 'default' }, sounds: {} };
-// let tray = null;
-
-// // --- (INÍCIO) CORREÇÃO 1: Flag para o Botão Sair ---
-// // Esta variável vai controlar se estamos realmente saindo ou apenas escondendo.
-// let isQuitting = false; 
-// // --- (FIM) CORREÇÃO 1 ---
-
-
-// // (Função loadSoundsConfig - Sem mudanças)
-// function loadSoundsConfig() {
-//   try {
-//     if (fs.existsSync(configPath)) {
-//       const data = fs.readFileSync(configPath, 'utf-8');
-//       const config = JSON.parse(data);
-//       if (config.sounds === undefined) {
-//         console.log('Migrando configuração antiga para o novo formato...');
-//         appConfig = {
-//           settings: { audioDevice: 'default' },
-//           sounds: config
-//         };
-//         fs.writeFileSync(configPath, JSON.stringify(appConfig, null, 2), 'utf-8');
-//       } else {
-//         appConfig = config;
-//       }
-//       return appConfig;
-//     }
-//   } catch (err) {
-//     console.error("Erro ao carregar configuração:", err);
-//   }
-//   appConfig = { settings: { audioDevice: 'default' }, sounds: {} };
-//   return appConfig;
-// }
-
-// // (Função registerAllHotkeys - Sem mudanças)
-// function registerAllHotkeys(sounds) {
-//     globalShortcut.unregisterAll();
-//     if (!sounds) return;
-//     Object.entries(sounds).forEach(([name, data]) => {
-//         if (data.hotkey) {
-//             try {
-//                 globalShortcut.register(data.hotkey, () => {
-//                     if (mainWindow) {
-//                       mainWindow.webContents.send('play-sound', name);
-//                     }
-//                 });
-//             } catch (err) {
-//                 console.error(`Erro ao registrar atalho ${data.hotkey} para ${name}:`, err);
-//             }
-//         }
-//     });
-// }
-
-// function createWindow() {
-//   mainWindow = new BrowserWindow({
-//     width: 1000,
-//     height: 800,
-//     webPreferences: {
-//       nodeIntegration: true,
-//       contextIsolation: false,
-//     },
-//     icon: path.join(__dirname, 'icon.png') 
-//   });
-
-//   mainWindow.removeMenu();
-//   loadSoundsConfig();
-
-//   // (Lógica de IPC - Sem mudanças)
-//   ipcMain.handle('load-config', async () => {
-//     return appConfig;
-//   });
-//   ipcMain.handle('save-config', async (event, config) => {
-//     try {
-//       const data = JSON.stringify(config, null, 2); 
-//       fs.writeFileSync(configPath, data, 'utf-8');
-//       appConfig = config;
-//       registerAllHotkeys(appConfig.sounds); 
-//     } catch (err) {
-//       console.error("Erro ao salvar configuração:", err);
-//     }
-//   });
-//   ipcMain.handle('select-audio-file', async () => {
-//     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-//       title: 'Selecione um arquivo de áudio',
-//       filters: [
-//         { name: 'Arquivos de Áudio', extensions: ['mp3', 'wav', 'ogg', 'm4a'] }
-//       ],
-//       properties: ['openFile']
-//     });
-//     if (!canceled && filePaths.length > 0) {
-//       return filePaths[0]; 
-//     }
-//     return null;
-//   });
-
-//   // --- LÓGICA DE JANELA ATUALIZADA ---
-
-//   // Oculta da barra de tarefas ao minimizar
-//   mainWindow.on('minimize', (event) => {
-//     event.preventDefault();
-//     mainWindow.hide();
-//   });
-
-//   // --- (INÍCIO) CORREÇÃO 1: Modificação do 'close' ---
-//   // Se fechar (clicar no X), esconde em vez de sair
-//   mainWindow.on('close', (event) => {
-//       if (!isQuitting) { // Verifica se NÃO estamos saindo
-//         event.preventDefault();
-//         mainWindow.hide();
-//       }
-//       // Se 'isQuitting' for true, o evento NÃO é prevenido
-//       // e a janela será fechada, permitindo que o app saia.
-//   });
-//   // --- (FIM) CORREÇÃO 1 ---
-
-//   mainWindow.loadFile('index.html');
-// }
-
-// // QUANDO O APP ESTIVER PRONTO
-// app.whenReady().then(() => {
-//   createWindow();
-  
-//   registerAllHotkeys(appConfig.sounds);
-
-//   // --- (INÍCIO) CORREÇÃO 1: Adiciona o listener 'before-quit' ---
-//   // Antes de o app começar a fechar (acionado pelo app.quit())
-//   app.on('before-quit', () => {
-//     isQuitting = true; // Define a flag que permite o fechamento
-//   });
-//   // --- (FIM) CORREÇÃO 1 ---
-
-// // --- (INÍCIO) LÓGICA DO TRAY (PRIMEIRA VERSÃO) ---
-  
-//   const iconPath = path.join(__dirname, 'icon.png');
-//   if (fs.existsSync(iconPath)) {
-//     tray = new Tray(iconPath);
-
-//     // 1. Crie o menu de contexto (para clique direito)
-//     const contextMenu = Menu.buildFromTemplate([
-//       {
-//         label: 'Abrir Soundboard',
-//         click: () => {
-//           mainWindow.show();
-//         }
-//       },
-//       {
-//         label: 'Sair',
-//         click: () => {
-//           app.quit(); 
-//         }
-//       }
-//     ]);
-
-//     // 2. Define o menu de contexto
-//     tray.setContextMenu(contextMenu);
-//     tray.setToolTip('Soundboard está em execução.');
-
-//     // 3. Ação de clique (esquerdo)
-//     tray.on('click', () => {
-//       mainWindow.show(); // Mostra a janela
-//     });
-
-//   } else {
-//     console.error(`Ícone não encontrado: ${iconPath}`);
-//     console.error("Crie um arquivo 'icon.png' na pasta raiz para o ícone da bandeja funcionar.");
-//   }
-//   // --- (FIM) LÓGICA DO TRAY (PRIMEIRA VERSÃO) ---
-
-//   app.on('activate', () => {
-//     if (BrowserWindow.getAllWindows().length === 0) {
-//       createWindow();
-//     }
-//   });
-// });
-
-// // (Eventos 'will-quit' e 'window-all-closed' - Sem mudanças)
-// app.on('will-quit', () => {
-//   globalShortcut.unregisterAll();
-// });
-
-// app.on('window-all-closed', () => {
-//   if (process.platform !== 'darwin') {
-//     app.quit();
-//   }
-// });

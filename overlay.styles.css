@@ -1,0 +1,103 @@
+ * {
+     margin: 0;
+     padding: 0;
+     box-sizing: border-box;
+ }
+
+ body {
+     background-color: rgba(0, 0, 0, 0.7);
+     /* Fundo escuro semi-transparente para a tela toda */
+     color: #fff;
+     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     height: 100vh;
+     overflow: hidden;
+     /* Garante que nada saia da tela */
+ }
+
+ .wheel-container {
+     position: relative;
+     width: 500px;
+     /* Tamanho da área total do menu circular */
+     height: 500px;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     animation: fadeIn 0.3s ease-out;
+     /* Animação de entrada */
+ }
+
+ .center-text {
+     position: absolute;
+     font-size: 1.8em;
+     color: #4CAF50;
+     font-weight: bold;
+     text-align: center;
+     pointer-events: none;
+     /* Ignora cliques para não interferir nos botões */
+     opacity: 0.9;
+ }
+
+ .wheel-item {
+     position: absolute;
+     width: 120px;
+     /* Tamanho de cada botão circular */
+     height: 120px;
+     background: rgba(255, 255, 255, 0.1);
+     border-radius: 50%;
+     display: flex;
+     flex-direction: column;
+     justify-content: center;
+     align-items: center;
+     cursor: pointer;
+     transition: all 0.2s ease;
+     border: 2px solid rgba(255, 255, 255, 0.2);
+     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+     font-size: 0.9em;
+     text-align: center;
+     white-space: nowrap;
+     /* Evita quebra de linha */
+     overflow: hidden;
+     /* Esconde texto muito longo */
+     text-overflow: ellipsis;
+     /* Adiciona "..." */
+ }
+
+ .wheel-item:hover {
+     background: rgba(76, 175, 80, 0.3);
+     /* Fundo verde ao passar o mouse */
+     border-color: #4CAF50;
+     transform: scale(1.05);
+     /* Leve aumento de tamanho */
+     box-shadow: 0 0 15px #4CAF50;
+ }
+
+ .item-key {
+     font-size: 1.8em;
+     font-weight: bold;
+     color: #2196F3;
+     /* Cor azul para a tecla */
+     margin-bottom: 5px;
+     text-shadow: 0 0 5px rgba(33, 150, 243, 0.5);
+ }
+
+ .item-name {
+     font-size: 0.8em;
+     color: #ccc;
+     padding: 0 5px;
+ }
+
+ /* Animação para o menu aparecer */
+ @keyframes fadeIn {
+     from {
+         opacity: 0;
+         transform: scale(0.9);
+     }
+
+     to {
+         opacity: 1;
+         transform: scale(1);
+     }
+ }
